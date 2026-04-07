@@ -6,19 +6,25 @@
 
 **Moni-UI-Prototype** 是 AI 原生个人财务助手 Moni 的 UI/UX 可交互原型仓库。
 
-本仓库不含后端逻辑，只包含前端可视原型。原型使用与正式产品完全一致的技术栈，确保设计确认后可直接迁移集成到主仓库（PixelBill / Moni 后端工程）。
+本仓库不含正式后端实现，只包含前端可视原型与配套规格文档。原型使用与正式产品完全一致的技术栈，确保设计确认后可直接迁移集成到主仓库（PixelBill / Moni 主工程）。
 
-> **当前阶段：UI 原型交互修复冲刺**
-> - 目标：修复所有手势交互 bug，使原型在 F12 移动设备模式下完全可用
+> **当前阶段：首页规格收口与集成准备**
+> - 目标：完成首页原型、需求文档、AI 规格文档之间的口径收敛，为后续逻辑层 / 表现层集成提供执行依据
 > - 设计权威文档：`DESIGN.md`（UI/UX 唯一执行标准）
-> - 品牌视觉参考：`Moni_Brand_Design_Spec.md`
-> - 功能需求参考：`Moni_Requirements_v2.md`
+> - 首页集成文档：`docs/Moni_Homepage_Integration_Spec.md`
+> - 预算系统文档：`docs/Moni_Budget_System_Spec.md`
+> - 功能需求参考：`docs/Moni_Requirements_v2.md`
+>
+> **当前仓库角色**
+> - 当前目录已作为主开发仓库下的原型参考子仓库使用
+> - 此仓库的目标是保持文档与原型状态稳定、可追溯、可供主仓库引用
+> - 若后续继续进行原型开发，建议复制到新的工作目录中进行，避免污染参考源
 
 ### 架构设计
 
 本仓库是一个标准 React 单页应用，用于原型展示和交互验证。
 
-**技术栈**：React + TypeScript + Vite + Tailwind CSS + Framer Motion + Capacitor
+**技术栈**：React + javaScript + Vite + Tailwind CSS + Framer Motion
 
 **核心文件结构**（组件拆分自 Claude 产出的单文件 JSX 原型）：
 
@@ -52,7 +58,10 @@ moni-ui-prototype/
 │   ├── DESIGN.md                  # UI/UX 唯一设计标准（核心）
 │   ├── Moni_Brand_Design_Spec.md  # 品牌视觉与 SVG 资产
 │   ├── Moni_Requirements_v2.md    # 功能需求参考
-│   └── AI_SELF_LEARNING_DESIGN_v6.md  # AI 自学习功能设计
+│   ├── Moni_Homepage_Integration_Spec.md  # 首页表现层 / 逻辑层集成规格
+│   ├── Moni_Budget_System_Spec.md  # 预算系统专项规格
+│   ├── AI_SELF_LEARNING_DESIGN_v6.md  # AI 自学习功能设计
+│   └── reference/                 # 历史设计稿、聊天沉淀与归档参考
 ├── src/
 │   ├── features/
 │   │   └── moni-home/
@@ -82,7 +91,10 @@ moni-ui-prototype/
 | UI/UX 设计标准 | 唯一执行标准，含首页全部交互规则、手势实现规范 | `DESIGN.md` |
 | 品牌视觉规范 | 品牌色、字体、SVG 资产、Memphis 装饰规则 | `Moni_Brand_Design_Spec.md` |
 | 功能需求文档 | 产品功能需求（设计实现以 DESIGN.md 为准） | `Moni_Requirements_v2.md` |
+| 首页集成规格 | 首页组件业务逻辑、表现层 / 逻辑层动作、联调边界 | `docs/Moni_Homepage_Integration_Spec.md` |
+| 预算系统规格 | 月度总预算的显示层、逻辑层、持久化层与本轮范围 | `docs/Moni_Budget_System_Spec.md` |
 | AI 自学习设计 | 后端 AI 功能设计参考（原型阶段不直接涉及） | `AI_SELF_LEARNING_DESIGN_v6.md` |
+| 历史参考归档 | 聊天沉淀、旧设计稿、原型草稿、辅助说明 | `docs/reference/` |
 
 ---
 
@@ -174,101 +186,30 @@ npx cap run android
 | 长按拖拽分类 | 拖拽阶段全局监听实现（基本可用） |
 | AI 工作态三色联动 | 日卡片边框流光 + 中央按钮发光 + 骨架屏 |
 | AI 控制条弹出 | 长按弹出开关条（视觉已实现，交互有 bug） |
+| 首页业务规格收口 | 已完成首页原型、需求文档、AI 设计文档之间的口径交叉核对 |
+| 首页集成规格文档 | 已新增 `docs/Moni_Homepage_Integration_Spec.md`，明确首页组件级业务逻辑与表现层 / 逻辑层边界 |
+| 需求文档修订 | 已更新 `docs/Moni_Requirements_v2.md`，修正过时内容并补充当前冻结边界 |
+| 预算系统专项规格 | 已新增 `docs/Moni_Budget_System_Spec.md`，明确月度总预算的显示层、逻辑层与持久化层最小范围 |
+| 参考资料归档整理 | 已将历史聊天沉淀与旧设计稿整理进 `docs/reference/` |
 
 ### 进行中 / 待修复 🚧
 
-**Sprint: 手势交互全面修复**
+**当前重点：文档侧已收口，代码侧集成与交互修复待下一阶段执行**
 
 | 任务 ID | 任务名称 | 优先级 | 状态 | 具体描述 |
 |---------|----------|--------|------|----------|
-| GES-01 | 全局 CSS 防御层 | P0 | 待开始 | 在 index.css 中添加 DESIGN.md 23.1 节的 6 条全局规则 |
-| GES-02 | AI 控制条指针追踪修复 | P0 | 待开始 | 见下方详细方案 |
-| GES-03 | AI 控制条 pointerleave 误触修复 | P0 | 待开始 | 见下方详细方案 |
-| GES-04 | 条目长按 pointerleave 误取消修复 | P0 | 待开始 | 见下方详细方案 |
-| GES-05 | 看板容器 touch-action 声明 | P1 | 待开始 | 看板区域添加 `touch-action: pan-x` |
-| GES-06 | 折线图容器 touch-action 声明 | P1 | 待开始 | 折线图区域添加 `touch-action: pan-y` |
-| GES-07 | 标签轨道 overscroll 防穿透 | P1 | 待开始 | 标签容器添加 `overscroll-behavior-x: contain` |
-| GES-08 | 拖拽期间锁定 body 滚动 | P1 | 待开始 | dragItem 激活时 `body.style.overflow = "hidden"` |
-| GES-09 | 交互全场景 F12 回归测试 | P0 | 待开始 | 通过 DESIGN.md 23.5 节全部 8 个 F12 测试项 |
-
----
-
-### GES-02 详细修复方案：AI 控制条指针追踪
-
-**当前 bug**：长按中央按钮弹出控制条后，手指滑到"开启"/"关闭"上松手，不触发对应操作。必须额外单击才能生效。
-
-**根因**：`pointerdown` 发生在中央按钮父容器上，浏览器对该容器进行了隐式指针捕获。控制条作为动态渲染的子元素，其 `onPointerMove` 永远收不到事件，导致 `controlHit` 始终为 null。
-
-**修复方案（推荐方案 A，最小改动）**：
-
-**文件**：`components.jsx` — `BottomNav` 组件
-
-**改动**：
-1. 在中央按钮的**父容器 div** 上添加 `onPointerMove`
-2. 控制条子元素移除 `onPointerMove`
-
-```jsx
-// BottomNav 中央按钮区域 — 修复后
-<div
-  style={{ position: "relative", textAlign: "center", cursor: "pointer", touchAction: "none" }}
-  onPointerDown={onStartControl}
-  onPointerMove={(e) => {
-    // 指针被此 div 捕获，所以 move 事件只会在此 div 上触发
-    // 控制条打开时，用 clientY 计算命中哪个选项
-    if (controlOpen) {
-      onUpdateControlHit.move(e.clientY);
-    }
-  }}
-  onPointerUp={onEndControl}
-  onPointerCancel={onCancelControl}
-  // 注意：移除 onPointerLeave={onCancelControl}，见 GES-03
->
-```
-
-控制条子元素改为纯展示，不再绑定 `onPointerMove`：
-```jsx
-{controlOpen && (
-  <div ref={onUpdateControlHit.ref} className="fi" style={{...}}>
-    {/* 移除 onPointerMove */}
-    <div style={{...}}>开启</div>
-    <div style={{...}}>关闭</div>
-  </div>
-)}
-```
-
-**验证标准**：F12 移动模式下，长按中央按钮 → 不松手 → 滑到"开启" → 松手 → AI 状态变为"运行中"。反向滑到"关闭"同理。
-
----
-
-### GES-03 详细修复方案：AI 控制条 pointerleave 误触
-
-**当前 bug**：父容器绑定了 `onPointerLeave={onCancelControl}`。在某些情况下，手指滑到控制条区域（绝对定位在父容器上方）时可能触发 `pointerleave`，导致控制条被提前关闭。
-
-**修复**：
-
-**文件**：`components.jsx` — `BottomNav` 组件
-
-直接移除父容器上的 `onPointerLeave={onCancelControl}`。
-
-控制条关闭改为以下两种方式：
-- `pointerup` 松手时（正常操作，执行选中项后关闭）
-- 点击控制条外部区域时（取消操作，不改变状态后关闭）— 这需要在 MoniHome 层添加一个蒙版/背景点击监听
-
----
-
-### GES-04 详细修复方案：条目长按 pointerleave 误取消
-
-**当前 bug**：交易条目绑定了 `onPointerLeave={onItemPointerUp}`，手指微抖动会导致长按定时器被取消。
-
-**修复**：
-
-**文件**：`components.jsx` — `DayCard` 组件内条目渲染
-
-移除条目元素上的 `onPointerLeave={onItemPointerUp}`。
-
-长按取消只依赖：
-- 手指移动距离 > 8px（已实现）
-- `pointerup` 提前触发（已实现）
+| DOC-01 | 首页文档闭环 | P0 | 已完成 | `DESIGN.md`、`Moni_Requirements_v2.md`、`AI_SELF_LEARNING_DESIGN_v6.md`、首页原型代码之间的首页业务口径已完成交叉核对 |
+| DOC-02 | 首页集成规格输出 | P0 | 已完成 | 已形成首页集成专用执行文档，供主仓库协作者联调使用 |
+| DOC-03 | 预算系统规格输出 | P0 | 已完成 | 已形成预算系统专项文档，冻结月度总预算本轮范围 |
+| GES-01 | 全局 CSS 防御层 | P0 | 待执行 | 在代码阶段按 DESIGN.md 23.1 节补齐 6 条全局规则 |
+| GES-02 | AI 控制条指针追踪修复 | P0 | 待执行 | 见下方详细方案 |
+| GES-03 | AI 控制条 pointerleave 误触修复 | P0 | 待执行 | 见下方详细方案 |
+| GES-04 | 条目长按 pointerleave 误取消修复 | P0 | 待执行 | 见下方详细方案 |
+| INT-01 | 首页聚合读模型接入 | P0 | 待执行 | 让看板、统计、概览、流水、AI 状态统一消费逻辑层读模型 |
+| INT-02 | AI 引擎状态接入 | P0 | 待执行 | 接入 AI 工作态、软停止状态、范围外 backlog 感知 |
+| INT-03 | 月度总预算接入 | P0 | 待执行 | 按预算系统专项文档接入首页预算卡所需字段与无预算态分支 |
+| INT-04 | 手动记录条目显示接入 | P1 | 待执行 | 在首页流水中支持“AI reasoning 留空 + 来源显示手动记录” |
+| GES-09 | 交互全场景 F12 回归测试 | P0 | 待执行 | 在代码侧改动落地后回归 DESIGN.md 23.5 节全部测试项 |
 
 ---
 
