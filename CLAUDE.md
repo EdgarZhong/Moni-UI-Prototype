@@ -1,0 +1,293 @@
+# CLAUDE.md — Moni-UI-Prototype
+
+## 项目基本信息
+
+### 项目概述
+
+**Moni-UI-Prototype** 是 AI 原生个人财务助手 Moni 的 UI/UX 可交互原型仓库。
+
+本仓库不含后端逻辑，只包含前端可视原型。原型使用与正式产品完全一致的技术栈，确保设计确认后可直接迁移集成到主仓库（PixelBill / Moni 后端工程）。
+
+> **当前阶段：UI 原型交互修复冲刺**
+> - 目标：修复所有手势交互 bug，使原型在 F12 移动设备模式下完全可用
+> - 设计权威文档：`DESIGN.md`（UI/UX 唯一执行标准）
+> - 品牌视觉参考：`Moni_Brand_Design_Spec.md`
+> - 功能需求参考：`Moni_Requirements_v2.md`
+
+### 架构设计
+
+本仓库是一个标准 React 单页应用，用于原型展示和交互验证。
+
+**技术栈**：React + TypeScript + Vite + Tailwind CSS + Framer Motion + Capacitor
+
+**核心文件结构**（组件拆分自 Claude 产出的单文件 JSX 原型）：
+
+- `config` — 主题色、分类数据、mock 数据、常量
+- `helpers` — 工具函数（日期、分类、统计、随机装饰）
+- `components` — UI 组件（Logo、NavIcon、TagRail、DayCard、BottomNav、DragOverlay 等）
+- `MoniHome` — 首页主容器（状态管理、手势处理、布局编排）
+
+### 协作模式
+
+本仓库的设计方案由两方协作产出：
+
+- **Claude（网页端）**：负责 0→1，产出 JSX 可视原型 + DESIGN.md 规格文档
+- **编码 Agent（本地）**：负责 1→10，按 DESIGN.md 规格落地工程实现
+
+**同步方式**：Claude 产出 JSX 作为视觉参考 + DESIGN.md 作为执行规格，编码 Agent 照规格实现。两方不直接共享工程目录，通过文件级粘贴同步。
+
+**执行原则**：
+- DESIGN.md 是唯一设计权威，代码必须符合 DESIGN.md
+- 若 DESIGN.md 与代码冲突，以 DESIGN.md 为准
+- 若 DESIGN.md 本身需要修改，必须先更新 DESIGN.md，再改代码
+- 编码 Agent 不得自行发明交互行为，所有交互必须在 DESIGN.md 中有依据
+
+---
+
+## 项目目录结构
+
+```
+moni-ui-prototype/
+├── docs/                          # 项目文档
+│   ├── DESIGN.md                  # UI/UX 唯一设计标准（核心）
+│   ├── Moni_Brand_Design_Spec.md  # 品牌视觉与 SVG 资产
+│   ├── Moni_Requirements_v2.md    # 功能需求参考
+│   └── AI_SELF_LEARNING_DESIGN_v6.md  # AI 自学习功能设计
+├── src/
+│   ├── features/
+│   │   └── moni-home/
+│   │       ├── config.js          # 主题色、分类数据、mock 交易数据
+│   │       ├── helpers.js         # 工具函数
+│   │       └── components.jsx     # UI 组件集合
+│   ├── pages/
+│   │   └── MoniHomePrototype.jsx  # 首页主容器
+│   ├── App.tsx                    # 应用入口
+│   └── index.css                  # 全局样式（含手势防御 CSS）
+├── index.html
+├── package.json
+├── vite.config.ts
+├── tailwind.config.js
+├── CLAUDE.md                      # 本文件
+└── DESIGN.md                      # → 软链接或复制自 docs/DESIGN.md
+```
+
+> 注：实际目录结构以仓库 `ls` 结果为准，以上为规划结构。如有出入请先执行 `find . -type f` 确认再操作。
+
+---
+
+## 重要文档索引表
+
+| 文档名称 | 内容描述 | 文件路径 |
+|----------|----------|----------|
+| UI/UX 设计标准 | 唯一执行标准，含首页全部交互规则、手势实现规范 | `DESIGN.md` |
+| 品牌视觉规范 | 品牌色、字体、SVG 资产、Memphis 装饰规则 | `Moni_Brand_Design_Spec.md` |
+| 功能需求文档 | 产品功能需求（设计实现以 DESIGN.md 为准） | `Moni_Requirements_v2.md` |
+| AI 自学习设计 | 后端 AI 功能设计参考（原型阶段不直接涉及） | `AI_SELF_LEARNING_DESIGN_v6.md` |
+
+---
+
+## 项目代码规范
+
+### 技术栈约束
+
+- React 18 + TypeScript（JSX/TSX 均可，逐步向 TSX 迁移）
+- Vite 构建
+- Tailwind CSS（可与 inline style 混用，逐步迁移）
+- Framer Motion（手势交互必须使用，见 DESIGN.md 第 23 节）
+- 目标运行平台：Capacitor Android WebView
+
+### 代码风格
+
+- **所有代码必须包含详细中文注释**
+- 复杂逻辑需要解释"为什么"而非"做什么"
+- 组件 Props 需要 JSDoc 说明
+- 使用 ES Module（`import/export`），不使用 CommonJS
+- 使用函数组件 + Hooks，不使用 Class 组件
+
+### 手势代码规范（核心）
+
+详见 DESIGN.md 第 23 节。以下为摘要：
+
+1. **全局 CSS 防御层**必须在 `index.css` 中设置（`touch-action: manipulation`、`-webkit-touch-callout: none`、`overscroll-behavior: none` 等 6 条规则）
+2. **禁止**在动态弹出的子元素上依赖 `onPointerMove`（指针已被父元素隐式捕获）
+3. **禁止**使用 `onPointerLeave` 作为取消手势的手段
+4. 需要跨元素追踪指针时，使用 `window.addEventListener` 全局监听或在已捕获元素上用 `clientY` + `elementFromPoint` 判定
+5. 拖拽/长按激活期间必须锁定 body 滚动
+
+### Git 规范
+
+- 使用语义化提交信息：`feat:`, `fix:`, `refactor:`, `docs:`, `style:`
+- 除非用户要求，否则不要自行 `git add` 和 `git commit`
+- **绝对禁止自行 `git push`**
+- 永远不要删除文件，需要删除的一律移动到 `.archive/`
+
+---
+
+## 开发测试闭环 SOP
+
+### 启动开发环境
+
+```bash
+npm run dev
+# 浏览器访问 http://localhost:5173
+# 打开 F12 → 切换到移动设备模式（如 iPhone 12 Pro 或自定义 390×860）
+```
+
+### 交互测试流程
+
+在 F12 移动设备模式下逐一测试以下场景（对应 DESIGN.md 23.5 节）：
+
+1. 看板卡片上下滑动
+2. 折线图卡内左右滑动
+3. 标签轨道横向滚动
+4. 长按条目 → 拖拽分类
+5. 拖拽投放 / 拖拽取消
+6. **长按中央按钮 → 不松手 → 滑到控制条 → 松手触发**
+7. 页面连续滚动 + 标签轨道吸附
+
+### Android 真机验证（里程碑节点执行）
+
+```bash
+npm run build
+npx cap sync
+npx cap run android
+```
+
+验证项见 DESIGN.md 23.5 节"Android 额外验证"。
+
+---
+
+## 项目当前进展和任务列表
+
+### 已完成 ✅
+
+| 任务 | 说明 |
+|------|------|
+| 首页信息架构 | Header / 看板 / 统计 / 概览 / 标签轨道 / 日卡片列表 / 底部导航 |
+| 品牌视觉系统 | Moni 字标 / 猫耳 M 按钮 / 三色装饰 / Memphis 印花 |
+| 分类数据系统 | 11 类分类 + 色彩 + emoji 图标组 |
+| 看板轮播 | 预算卡 ↔ 折线图卡上下切换（基础可用） |
+| 折线图时间窗口 | 左右滑动切换 7 天窗口（基础可用） |
+| 统计摘要 + 分类概览 | 联动 Data Range Picker |
+| 标签轨道筛选 | 横向滚动 + 点击筛选 + sticky 吸附 |
+| 三阶段日卡片折叠/展开 | 初始→过渡→完全 三阶段滚动逻辑 |
+| 长按拖拽分类 | 拖拽阶段全局监听实现（基本可用） |
+| AI 工作态三色联动 | 日卡片边框流光 + 中央按钮发光 + 骨架屏 |
+| AI 控制条弹出 | 长按弹出开关条（视觉已实现，交互有 bug） |
+
+### 进行中 / 待修复 🚧
+
+**Sprint: 手势交互全面修复**
+
+| 任务 ID | 任务名称 | 优先级 | 状态 | 具体描述 |
+|---------|----------|--------|------|----------|
+| GES-01 | 全局 CSS 防御层 | P0 | 待开始 | 在 index.css 中添加 DESIGN.md 23.1 节的 6 条全局规则 |
+| GES-02 | AI 控制条指针追踪修复 | P0 | 待开始 | 见下方详细方案 |
+| GES-03 | AI 控制条 pointerleave 误触修复 | P0 | 待开始 | 见下方详细方案 |
+| GES-04 | 条目长按 pointerleave 误取消修复 | P0 | 待开始 | 见下方详细方案 |
+| GES-05 | 看板容器 touch-action 声明 | P1 | 待开始 | 看板区域添加 `touch-action: pan-x` |
+| GES-06 | 折线图容器 touch-action 声明 | P1 | 待开始 | 折线图区域添加 `touch-action: pan-y` |
+| GES-07 | 标签轨道 overscroll 防穿透 | P1 | 待开始 | 标签容器添加 `overscroll-behavior-x: contain` |
+| GES-08 | 拖拽期间锁定 body 滚动 | P1 | 待开始 | dragItem 激活时 `body.style.overflow = "hidden"` |
+| GES-09 | 交互全场景 F12 回归测试 | P0 | 待开始 | 通过 DESIGN.md 23.5 节全部 8 个 F12 测试项 |
+
+---
+
+### GES-02 详细修复方案：AI 控制条指针追踪
+
+**当前 bug**：长按中央按钮弹出控制条后，手指滑到"开启"/"关闭"上松手，不触发对应操作。必须额外单击才能生效。
+
+**根因**：`pointerdown` 发生在中央按钮父容器上，浏览器对该容器进行了隐式指针捕获。控制条作为动态渲染的子元素，其 `onPointerMove` 永远收不到事件，导致 `controlHit` 始终为 null。
+
+**修复方案（推荐方案 A，最小改动）**：
+
+**文件**：`components.jsx` — `BottomNav` 组件
+
+**改动**：
+1. 在中央按钮的**父容器 div** 上添加 `onPointerMove`
+2. 控制条子元素移除 `onPointerMove`
+
+```jsx
+// BottomNav 中央按钮区域 — 修复后
+<div
+  style={{ position: "relative", textAlign: "center", cursor: "pointer", touchAction: "none" }}
+  onPointerDown={onStartControl}
+  onPointerMove={(e) => {
+    // 指针被此 div 捕获，所以 move 事件只会在此 div 上触发
+    // 控制条打开时，用 clientY 计算命中哪个选项
+    if (controlOpen) {
+      onUpdateControlHit.move(e.clientY);
+    }
+  }}
+  onPointerUp={onEndControl}
+  onPointerCancel={onCancelControl}
+  // 注意：移除 onPointerLeave={onCancelControl}，见 GES-03
+>
+```
+
+控制条子元素改为纯展示，不再绑定 `onPointerMove`：
+```jsx
+{controlOpen && (
+  <div ref={onUpdateControlHit.ref} className="fi" style={{...}}>
+    {/* 移除 onPointerMove */}
+    <div style={{...}}>开启</div>
+    <div style={{...}}>关闭</div>
+  </div>
+)}
+```
+
+**验证标准**：F12 移动模式下，长按中央按钮 → 不松手 → 滑到"开启" → 松手 → AI 状态变为"运行中"。反向滑到"关闭"同理。
+
+---
+
+### GES-03 详细修复方案：AI 控制条 pointerleave 误触
+
+**当前 bug**：父容器绑定了 `onPointerLeave={onCancelControl}`。在某些情况下，手指滑到控制条区域（绝对定位在父容器上方）时可能触发 `pointerleave`，导致控制条被提前关闭。
+
+**修复**：
+
+**文件**：`components.jsx` — `BottomNav` 组件
+
+直接移除父容器上的 `onPointerLeave={onCancelControl}`。
+
+控制条关闭改为以下两种方式：
+- `pointerup` 松手时（正常操作，执行选中项后关闭）
+- 点击控制条外部区域时（取消操作，不改变状态后关闭）— 这需要在 MoniHome 层添加一个蒙版/背景点击监听
+
+---
+
+### GES-04 详细修复方案：条目长按 pointerleave 误取消
+
+**当前 bug**：交易条目绑定了 `onPointerLeave={onItemPointerUp}`，手指微抖动会导致长按定时器被取消。
+
+**修复**：
+
+**文件**：`components.jsx` — `DayCard` 组件内条目渲染
+
+移除条目元素上的 `onPointerLeave={onItemPointerUp}`。
+
+长按取消只依赖：
+- 手指移动距离 > 8px（已实现）
+- `pointerup` 提前触发（已实现）
+
+---
+
+## 用户规则
+
+- **永远用中文回答用户问题，中文撰写项目 CLAUDE.md 文件**
+- **所有代码必须包含详细中文注释**
+- 当用户要求查看项目，总览项目，扫描项目目录时：**必须递归的查看项目目录结构**
+- 用户要求读取/查看任何图片/文档时，**必须真正阅读图片/文档内容**
+- **行动偏好更改**：如果用户的指令略显模糊，**不要**基于经验做出假设并直接执行，**必须先询问用户具体需求**，先给出建议，**用户确认后再执行**
+- **绝对禁止先干活，后汇报**：在执行代码修改和命令运行前，必须先**描述清楚意图**，然后再执行
+- **交互设计红线**：涉及前端交互逻辑变更，必须先汇报计划的设计细则并获得用户明确"确认"指令授权后方可实施代码；严禁未授权修改，且仅明确肯定回复视为确认
+- DESIGN.md 是唯一理念/视觉/功能设计指导
+- 文件操作：永远不要删除文件，需要删除的一律移动到 `.archive/`
+
+## Windows 命令行环境规范
+
+**当前环境：Git Bash（MSYS2）**
+- 路径格式用 `/c/Users/18518/`，不要用 `C:\` 或 `%USERPROFILE%`
+- 变量用 `$HOME`，不要用 `%USERPROFILE%` 或 `$env:`
+- 复杂 PowerShell 命令必须写成 `.ps1` 脚本文件，存放在 `.claude/pscript/`
+- 禁止在 Git Bash 命令里嵌套 PowerShell 语法

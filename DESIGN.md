@@ -610,3 +610,249 @@ Moni 的 UI / UX 不追求“像标准记账软件一样完整”，而追求“
 3. AI 的工作状态、学习状态、控制入口，是否被自然地表达出来？
 
 如果某个设计方案违背了这三条，即使它看起来更炫，也不应采用。
+
+## 23. 手势交互实现规范（Capacitor Android WebView 适配）
+
+### 23.0 背景与目标
+
+Moni 运行在 Capacitor Android 端，底层是 Android WebView（Chromium 内核）。开发测试在浏览器 F12 移动设备模式下进行。两个环境在手势处理上存在系统性差异，特别是指针捕获、嵌套滚动、长按行为、拖拽事件四个方面。
+
+本节的目标是：通过统一的 CSS 防御层和手势实现规范，使交互行为在 F12 模拟和真机 WebView 之间保持一致，消除"F12 里正常、真机上崩坏"以及"F12 里就坏了"两类风险。
+
+---
+
+### 23.1 全局 CSS 防御层
+
+以下 CSS 规则必须在全局样式中设置，不得遗漏：
+
+```css
+/* 1. 禁用双击缩放 — 消除 300ms tap delay */
+html {
+  touch-action: manipulation;
+}
+
+/* 2. 禁用长按系统菜单 — 防止长按时弹出文本选择/链接预览 */
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 3. 对需要文本选择的区域单独恢复 */
+input, textarea, [data-selectable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* 4. 防止嵌套滚动穿透 */
+[data-scroll-container] {
+  overscroll-behavior: contain;
+}
+
+/* 5. 禁用 Android WebView 的 overscroll 发光效果 */
+body {
+  overscroll-behavior: none;
+}
+
+/* 6. 禁用默认拖拽行为 */
+img, a, svg {
+  -webkit-user-drag: none;
+}
+```
+
+**强制要求**：以上 6 条规则写入全局 CSS，不允许在组件层面逐一添加。
+
+---
+
+### 23.2 核心原则：指针捕获（Pointer Capture）
+
+**这是当前代码中多个 bug 的共同根因，必须理解后再做任何手势修改。**
+
+在 Pointer Events 模型中，当 `pointerdown` 发生在元素 A 上时，浏览器会对元素 A 进行隐式指针捕获（implicit pointer capture）。这意味着后续所有 `pointermove` 和 `pointerup` 事件都会被送到元素 A，而不是指针当前悬停的元素 B。
+
+**推论**：
+
+1. 如果你在 `pointerdown` 之后动态渲染了新元素（如弹出控制条），新元素的 `onPointerMove` 不会被触发，因为指针被原元素捕获了
+2. 需要跨元素追踪指针位置时，必须使用以下方案之一：
+   - 在已捕获指针的元素上监听 `pointermove`，用 `clientX/clientY` + `document.elementFromPoint()` 判定命中
+   - 使用 `window.addEventListener("pointermove", ...)` 全局监听
+   - 使用 `element.releasePointerCapture(pointerId)` 主动释放捕获
+
+---
+
+### 23.3 各交互点的具体实现约束
+
+#### 23.3.1 看板卡片上下轮播（第 8 节）
+
+**当前实现方式**：手写 Pointer Events + ref 记录起止坐标 + 手动方向锁
+**评估**：基本可用，但方向锁定逻辑脆弱。未来建议迁移到 Framer Motion `drag="y"`。
+**当前阶段要求**：保持现有实现，修复以下问题即可：
+
+- 在看板容器上添加 `touch-action: pan-x`（允许水平穿透，拦截垂直，防止与页面滚动冲突）
+
+#### 23.3.2 折线图卡内左右滑动（第 8.5 节）
+
+**当前实现方式**：手写 Pointer Events + `stopPropagation` 防止冒泡到看板层
+**评估**：与看板的嵌套关系通过 `stopPropagation` 处理，基本可用。
+**当前阶段要求**：保持现有实现，添加以下防御：
+
+- 折线图容器添加 `touch-action: pan-y`（允许垂直穿透，拦截水平）
+
+#### 23.3.3 分类标签轨道横向滚动（第 12 节）
+
+**当前实现方式**：`overflowX: "auto"` 原生滚动
+**评估**：正确，无需使用 drag 手势。
+**当前阶段要求**：
+
+- 容器添加 `overscroll-behavior-x: contain`（防止滚到头时触发页面滚动）
+- 确认 sticky 吸附后横向滚动仍正常（不被 sticky 容器截断）
+
+#### 23.3.4 长按条目 → 拖拽分类（第 15.2 节）
+
+**当前实现方式**：
+
+- 长按判定：`onPointerDown` + `setTimeout(420ms)` + 移动超 8px 取消
+- 拖拽追踪：`window.addEventListener("pointermove/pointerup", ...)`（全局监听，正确！）
+- 命中判定：`document.elementFromPoint()` + `data-drop-category` 属性
+
+**评估**：拖拽阶段的全局监听是正确的。但存在一个问题：
+
+**BUG — `onPointerLeave` 提前取消长按**：
+条目元素上同时绑定了 `onPointerLeave={onItemPointerUp}`。在 F12 移动模式下，手指微小抖动可能导致 pointer 暂时离开元素边界，触发 `pointerleave`，进而取消长按定时器。
+
+**修复方案**：
+
+- 移除条目的 `onPointerLeave` 处理
+- 长按取消只依赖两个条件：移动距离 > 8px 或 `pointerup` 提前触发
+- 拖拽激活后锁定 body 滚动：`document.body.style.overflow = "hidden"`，拖拽结束后恢复
+
+#### 23.3.5 长按中央按钮 → AI 控制滑条（第 17.2 节）
+
+**当前实现方式**：
+
+- 长按判定：`onPointerDown` → 420ms 定时器 → `setControlOpen(true)`
+- 命中追踪：控制条自身的 `onPointerMove` → `updateControlHit(clientY)`
+- 执行：`onPointerUp` → 检查 `controlHit` → 开启/关闭
+
+**BUG — 控制条的 `onPointerMove` 从不触发**：
+
+根因就是 23.2 节说的指针捕获问题。`pointerdown` 发生在中央按钮的父容器 div 上，该 div 隐式捕获了指针。之后动态渲染的控制条子元素的 `onPointerMove` 永远不会收到事件。`controlHit` 始终为 null，松手时什么都不执行。用户被迫再单击一次才能触发——但这并不是设计意图。
+
+**修复方案**（选其一）：
+
+**方案 A（推荐，最小改动）**：在父容器的 `onPointerMove` 中统一处理
+
+```jsx
+// 父容器 div 增加 onPointerMove
+<div
+  style={{ touchAction: "none" }}
+  onPointerDown={onStartControl}
+  onPointerMove={(e) => {
+    // 只在控制条打开时追踪
+    if (controlOpen) {
+      onUpdateControlHit.move(e.clientY);
+    }
+  }}
+  onPointerUp={onEndControl}
+  onPointerCancel={onCancelControl}
+>
+```
+
+控制条自身不再需要 `onPointerMove`。指针捕获在父容器上，父容器的 `onPointerMove` 能正常收到事件。
+
+**方案 B（更彻底）**：使用全局监听，与拖拽分类同模式
+
+```javascript
+useEffect(() => {
+  if (!controlOpen) return;
+  const handleMove = (e) => updateControlHit(e.clientY);
+  const handleUp = () => { handleEndControl(); };
+  window.addEventListener("pointermove", handleMove);
+  window.addEventListener("pointerup", handleUp);
+  return () => {
+    window.removeEventListener("pointermove", handleMove);
+    window.removeEventListener("pointerup", handleUp);
+  };
+}, [controlOpen]);
+```
+
+**额外 BUG — `onPointerLeave` 取消控制**：
+父容器还绑定了 `onPointerLeave={onCancelControl}`。当手指从按钮滑到控制条时，如果控制条的绝对定位区域超出了父容器的边界，`pointerleave` 会触发，直接关闭控制条。
+
+**修复**：移除 `onPointerLeave={onCancelControl}`。控制条关闭只通过 `pointerup`（有效操作）或点击外部区域（取消操作）来触发。
+
+#### 23.3.6 主页面纵向滚动与嵌套手势的协调
+
+总原则：
+
+1. 主页面使用原生 `overflow-y: auto` 滚动，不使用 drag 手势
+2. 看板区域的垂直切换和折线图的水平滑动，由当前的手写 pointer 事件管理，通过 `touch-action` 属性分工
+3. 长按拖拽激活时锁 body scroll，结束后恢复
+4. 标签轨道横向滚动是原生 CSS 滚动，`overscroll-behavior-x: contain` 防穿透
+5. 未来条件允许时，看板和折线图的手势迁移到 Framer Motion `drag`
+
+---
+
+### 23.4 Capacitor 特定 API 规范
+
+#### 23.4.1 触觉反馈
+
+```typescript
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
+
+async function tapFeedback() {
+  try {
+    await Haptics.impact({ style: ImpactStyle.Light });
+  } catch {
+    // F12 环境无 Haptics API，静默失败
+  }
+}
+```
+
+使用场景：长按触发成功、拖拽投放命中、AI 开关切换。
+
+#### 23.4.2 安全区域
+
+```css
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.bottom-nav {
+  padding-bottom: max(env(safe-area-inset-bottom), 8px);
+}
+```
+
+---
+
+### 23.5 测试要求
+
+#### F12 移动设备模式必须通过
+
+1. 看板卡片上下滑动切换，不触发页面滚动
+2. 折线图卡内左右滑动切换时间窗口，不触发看板上下切换
+3. 标签轨道横向滚动，不影响页面纵向滚动
+4. 长按条目 > 420ms 后进入拖拽态，短按不触发
+5. 拖拽过程中页面不滚动
+6. 拖拽投放到分类格后条目更新，投放到空白处条目回弹
+7. **长按中央按钮 → 不松手 → 滑到控制条选项 → 松手 → 对应选项生效**（当前不通过）
+8. 页面连续快速滚动时标签轨道吸附保持稳定
+
+#### Android 模拟器/真机额外验证（手势开发完成后跑一次）
+
+1. 长按不触发系统文本选择菜单
+2. 拖拽过程中不触发 overscroll 发光
+3. 快速点击无延迟感
+4. 嵌套滚动边界到达时不穿透
+5. 触觉反馈正常
+
+---
+
+### 23.6 禁止事项
+
+1. **禁止**在动态弹出的子元素上依赖 `onPointerMove` 追踪指针（指针已被父元素捕获）
+2. **禁止**使用 `onPointerLeave` 作为关闭/取消手势的手段（指针抖动和隐式捕获会导致误触发）
+3. **禁止**假设 F12 移动模式完全等同于真机 WebView
+4. **禁止**在组件层面逐个添加 CSS 防御样式（应全局设置）
+5. **禁止**用 `e.preventDefault()` 阻止滚动代替 `touch-action` CSS 声明
