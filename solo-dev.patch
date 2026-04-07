@@ -1,0 +1,224 @@
+From 62d9f0dd4dcf799c0eb2c8f19bb5410fc5c09ce7 Mon Sep 17 00:00:00 2001
+From: EdgarZhong <EdgarZhong@users.noreply.github.com>
+Date: Tue, 7 Apr 2026 10:57:24 +0000
+Subject: [PATCH] =?UTF-8?q?fix:=20=E6=89=8B=E5=8A=BF=E4=BA=A4=E4=BA=92?=
+ =?UTF-8?q?=E4=BF=AE=E5=A4=8D=EF=BC=88GES-01~08=EF=BC=89?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/features/moni-home/components.jsx | 32 ++++++++++++++---
+ src/index.css                         | 51 +++++++++++++++++++++++++++
+ src/main.jsx                          |  2 ++
+ src/pages/MoniHomePrototype.jsx       | 45 +++++++++++++++++++++--
+ 4 files changed, 124 insertions(+), 6 deletions(-)
+ create mode 100644 src/index.css
+
+diff --git a/src/features/moni-home/components.jsx b/src/features/moni-home/components.jsx
+index 7e82f56..471e8ce 100644
+--- a/src/features/moni-home/components.jsx
++++ b/src/features/moni-home/components.jsx
+@@ -236,7 +236,11 @@ export function OverviewCard({ rangeLabel, overview, onOpen }) {
+ export function TagRail({ filters, selectedFilter, unclassifiedCount, onSelect }) {
+   return (
+     <div style={{ margin: 0, background: "transparent", padding: "0 16px 8px" }}>
+-      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
++      <div
++        // GES-07：标签轨道横向滚动防穿透（DESIGN.md 23.3.3）
++        // 当横向滚动到头时，避免把滚动“传递”给页面纵向滚动造成误触。
++        style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, overscrollBehaviorX: "contain" }}
++      >
+         {filters.map((label) => {
+           const active = selectedFilter === label;
+           const warning = label === "未分类";
+@@ -329,7 +333,8 @@ export function DayCard({ day, isExpanded, isAi, aiStop, onToggle, onItemPointer
+                 onPointerMove={onItemPointerMove}
+                 onPointerUp={onItemPointerUp}
+                 onPointerCancel={onItemPointerUp}
+-                onPointerLeave={onItemPointerUp}
++                // GES-04：禁止用 onPointerLeave 取消长按
++                // 原因：F12 移动模式下手指轻微抖动就可能离开元素边界，导致长按被误取消（DESIGN.md 23.3.4）。
+                 style={{ display: "flex", alignItems: "center", padding: "7px 0", borderBottom: index < day.visibleItems.length - 1 ? `0.5px solid ${C.line}` : "none", cursor: "pointer", userSelect: "none", touchAction: "pan-y" }}
+               >
+                 <div style={{ width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, marginRight: 10, flexShrink: 0, background: category ? meta.bg : C.orangeBg, border: category ? "none" : "1.5px dashed #D85A30" }}>
+@@ -362,9 +367,28 @@ export function BottomNav({ aiOn, aiStop, controlOpen, controlHit, onStartContro
+         <GearIcon />
+         <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>设置</div>
+       </div>
+-      <div style={{ position: "relative", textAlign: "center", cursor: "pointer", touchAction: "none" }} onPointerDown={onStartControl} onPointerUp={onEndControl} onPointerCancel={onCancelControl} onPointerLeave={onCancelControl}>
++      <div
++        style={{ position: "relative", textAlign: "center", cursor: "pointer", touchAction: "none" }}
++        onPointerDown={onStartControl}
++        // GES-02：修复控制条命中追踪
++        // 原因：pointerdown 后父容器会发生“隐式指针捕获”，导致后续 move/up 都只会派发给父容器，
++        // 动态渲染的子元素（控制条）收不到 onPointerMove（DESIGN.md 23.2 / 23.3.5）。
++        onPointerMove={(event) => {
++          if (controlOpen) {
++            onUpdateControlHit.move(event.clientY);
++          }
++        }}
++        onPointerUp={onEndControl}
++        onPointerCancel={onCancelControl}
++        // GES-03：禁止用 onPointerLeave 作为取消控制手势的手段（会误触发提前关闭）
++      >
+         {controlOpen && (
+-          <div ref={onUpdateControlHit.ref} className="fi" onPointerMove={(event) => onUpdateControlHit.move(event.clientY)} style={{ position: "absolute", bottom: 62, left: "50%", transform: "translateX(-50%)", width: 56, height: 108, borderRadius: 28, overflow: "hidden", border: `2px solid ${C.dark}`, display: "flex", flexDirection: "column", boxShadow: "0 6px 20px rgba(0,0,0,.15)", zIndex: 30, background: C.white }}>
++          <div
++            ref={onUpdateControlHit.ref}
++            className="fi"
++            // 控制条只做展示：命中计算移到父容器 onPointerMove（见上方 GES-02）
++            style={{ position: "absolute", bottom: 62, left: "50%", transform: "translateX(-50%)", width: 56, height: 108, borderRadius: 28, overflow: "hidden", border: `2px solid ${C.dark}`, display: "flex", flexDirection: "column", boxShadow: "0 6px 20px rgba(0,0,0,.15)", zIndex: 30, background: C.white }}
++          >
+             <div style={{ flex: 1, background: controlHit === "开启" ? C.mint : C.white, color: controlHit === "开启" ? C.white : C.mint, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, borderBottom: `1px solid ${C.border}` }}>开启</div>
+             <div style={{ flex: 1, background: controlHit === "关闭" ? C.coral : C.white, color: controlHit === "关闭" ? C.white : C.coral, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>关闭</div>
+           </div>
+diff --git a/src/index.css b/src/index.css
+new file mode 100644
+index 0000000..b879271
+--- /dev/null
++++ b/src/index.css
+@@ -0,0 +1,51 @@
++/*
++  Moni-UI-Prototype 全局 CSS 防御层（DESIGN.md 23.1）
++  目标：让 F12 移动模式 与 Android WebView 的触控行为尽量一致，避免系统默认手势/菜单干扰。
++*/
++
++/* 1. 禁用双击缩放 — 消除 300ms tap delay */
++html {
++  touch-action: manipulation;
++}
++
++/* 2. 禁用长按系统菜单 — 防止长按时弹出文本选择/链接预览 */
++* {
++  -webkit-touch-callout: none;
++  -webkit-user-select: none;
++  user-select: none;
++}
++
++/* 3. 对需要文本选择的区域单独恢复 */
++input,
++textarea,
++[data-selectable] {
++  -webkit-user-select: text;
++  user-select: text;
++}
++
++/* 4. 防止嵌套滚动穿透（滚动容器需显式打 data-scroll-container 标记） */
++[data-scroll-container] {
++  overscroll-behavior: contain;
++}
++
++/* 5. 禁用 Android WebView 的 overscroll 发光效果 */
++body {
++  overscroll-behavior: none;
++}
++
++/* 6. 禁用默认拖拽行为（避免误触发浏览器拖拽预览） */
++img,
++a,
++svg {
++  -webkit-user-drag: none;
++}
++
++/* --- 额外通用防御（不属于 23.1 六条，但对原型稳定性有帮助） --- */
++* {
++  box-sizing: border-box;
++}
++
++/* 隐藏滚动条（保持 iOS/Android 原生质感） */
++::-webkit-scrollbar {
++  display: none;
++}
+diff --git a/src/main.jsx b/src/main.jsx
+index 1141dbf..8f46619 100644
+--- a/src/main.jsx
++++ b/src/main.jsx
+@@ -1,6 +1,8 @@
+ import React from "react";
+ import ReactDOM from "react-dom/client";
+ import App from "./App.jsx";
++// 引入全局 CSS 防御层（DESIGN.md 23.1）
++import "./index.css";
+
+ ReactDOM.createRoot(document.getElementById("root")).render(
+   <React.StrictMode>
+diff --git a/src/pages/MoniHomePrototype.jsx b/src/pages/MoniHomePrototype.jsx
+index a076076..5661f64 100644
+--- a/src/pages/MoniHomePrototype.jsx
++++ b/src/pages/MoniHomePrototype.jsx
+@@ -400,7 +400,12 @@ export default function MoniHome() {
+
+   const handleCancelControl = useCallback(() => {
+     clearTimeout(holdRef.current);
+-  }, []);
++    // 控制条已打开时，取消意味着：不执行任何选项，并关闭控制条（DESIGN.md 23.3.5）
++    if (controlOpen) {
++      setControlOpen(false);
++      setControlHit(null);
++    }
++  }, [controlOpen]);
+
+   const updateControlHit = useCallback((clientY) => {
+     const rect = controlRef.current?.getBoundingClientRect();
+@@ -454,6 +459,20 @@ export default function MoniHome() {
+     };
+   }, [dragItem, handleDropCategory, resolveHoverCategory]);
+
++  useEffect(() => {
++    // GES-08：拖拽期间锁定 body 滚动
++    // 为什么要做：拖拽手势激活后，用户手指移动会同时“带动”页面滚动，造成命中判定不稳定；
++    // 在 Android WebView 下还可能触发 overscroll 发光（DESIGN.md 23.3.4 / 23.5）。
++    if (!dragItem) {
++      return undefined;
++    }
++    const previousOverflow = document.body.style.overflow;
++    document.body.style.overflow = "hidden";
++    return () => {
++      document.body.style.overflow = previousOverflow;
++    };
++  }, [dragItem]);
++
+   useEffect(() => () => clearTimeout(holdRef.current), []);
+
+   const boardHandlers = {
+@@ -490,7 +509,12 @@ export default function MoniHome() {
+         </div>
+       </div>
+
+-      <div ref={scrollRef} onScroll={handleScroll} style={{ flex: 1, overflowY: "auto", overflowX: "hidden", position: "relative", zIndex: 1 }}>
++      <div
++        ref={scrollRef}
++        data-scroll-container
++        onScroll={handleScroll}
++        style={{ flex: 1, overflowY: "auto", overflowX: "hidden", position: "relative", zIndex: 1 }}
++      >
+         <DisplayBoard
+           currentIndex={carouselIndex}
+           budgetPct={budgetPct}
+@@ -546,6 +570,23 @@ export default function MoniHome() {
+         onUpdateControlHit={{ ref: controlRef, move: updateControlHit }}
+       />
+
++      {/*
++        GES-03：控制条“点外部取消”蒙版
++        说明：控制条开启后，点击/触摸空白区域应当关闭控制条且不改变 AI 状态（DESIGN.md 23.3.5）。
++        注意：控制条开启时，正在按下的指针事件会被父容器隐式捕获，因此该蒙版不会抢走 move/up 事件。
++      */}
++      {controlOpen && (
++        <div
++          onPointerDown={(event) => {
++            event.preventDefault();
++            event.stopPropagation();
++            setControlOpen(false);
++            setControlHit(null);
++          }}
++          style={{ position: "absolute", inset: 0, zIndex: 25, background: "transparent" }}
++        />
++      )}
++
+       <DragOverlay
+         dragItem={dragItem}
+         dragPoint={dragPoint}
+--
+2.34.1

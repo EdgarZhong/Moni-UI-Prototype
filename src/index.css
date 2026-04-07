@@ -1,0 +1,38 @@
+html {
+  touch-action: manipulation;
+}
+
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+input,
+textarea,
+[data-selectable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+[data-scroll-container] {
+  overscroll-behavior: contain;
+}
+
+body {
+  margin: 0;
+  overscroll-behavior: none;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+img,
+a,
+svg {
+  -webkit-user-drag: none;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}

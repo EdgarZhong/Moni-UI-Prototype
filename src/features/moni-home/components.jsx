@@ -1,6 +1,8 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { C, CAT, OVERVIEW_COLORS } from "./config.js";
 import { getCategory, seededShapes } from "./helpers.js";
+
+const UNCLASSIFIED_STRIPE = `repeating-linear-gradient(45deg,${OVERVIEW_COLORS["未分类"]}22,${OVERVIEW_COLORS["未分类"]}22 3px,${OVERVIEW_COLORS["未分类"]}55 3px,${OVERVIEW_COLORS["未分类"]}55 6px)`;
 
 export function Decor() {
   const shapes = useMemo(() => seededShapes(777, 9, { x: 0, y: 40, w: 390, h: 900 }), []);
@@ -139,9 +141,10 @@ export function DisplayBoard({
   budgetPct,
   budgetColor,
   hasBudget,
-  trendSlice,
-  trendMax,
-  trendOffset,
+  trendData,
+  trendTrackMax,
+  trendTrackTranslate,
+  trendIsDragging,
   maxTrendOffset,
   onManualSwitch,
   onTrendForward,
@@ -149,6 +152,9 @@ export function DisplayBoard({
   boardHandlers,
   trendHandlers,
 }) {
+  const chartViewportWidth = 260;
+  const chartStep = chartViewportWidth / 6;
+  const chartTrackWidth = Math.max(chartViewportWidth, (trendData.length - 1) * chartStep + chartViewportWidth / 7);
   return (
     <div
       {...boardHandlers}
@@ -174,20 +180,30 @@ export function DisplayBoard({
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <div style={{ fontSize: 10, color: C.sub }}>近 7 天支出</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span onClick={onTrendForward} style={{ fontSize: 16, cursor: "pointer", opacity: trendOffset < maxTrendOffset ? 0.55 : 0.2, userSelect: "none" }}>‹</span>
-              <span onClick={onTrendBackward} style={{ fontSize: 16, cursor: "pointer", opacity: trendOffset > 0 ? 0.55 : 0.2, userSelect: "none" }}>›</span>
+              <span onClick={onTrendForward} style={{ fontSize: 16, cursor: "pointer", opacity: trendTrackTranslate < 0 ? 0.55 : 0.2, userSelect: "none" }}>‹</span>
+              <span onClick={onTrendBackward} style={{ fontSize: 16, cursor: "pointer", opacity: trendTrackTranslate > -(maxTrendOffset * chartStep) ? 0.55 : 0.2, userSelect: "none" }}>›</span>
             </div>
           </div>
-          <svg width="100%" height="58" viewBox="0 0 260 58" preserveAspectRatio="none">
-            <polyline points={trendSlice.map((item, index) => `${index * (260 / 6)},${50 - (item.amount / trendMax) * 42}`).join(" ")} fill="none" stroke={C.mint} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            <polygon points={`${trendSlice.map((item, index) => `${index * (260 / 6)},${50 - (item.amount / trendMax) * 42}`).join(" ")} 260,50 0,50`} fill={C.mint} opacity=".08" />
-          </svg>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#BBB" }}>
-            {trendSlice.map((item, index) => (
-              <span key={item.key} style={index === trendSlice.length - 1 && trendOffset === 0 ? { color: C.mint, fontWeight: 700 } : {}}>
-                {item.label}
-              </span>
-            ))}
+          <div style={{ width: "100%", overflow: "hidden", height: 58 }}>
+            <svg
+              width={chartTrackWidth}
+              height="58"
+              viewBox={`0 0 ${chartTrackWidth} 58`}
+              preserveAspectRatio="none"
+              style={{ transform: `translateX(${trendTrackTranslate}px)`, transition: trendIsDragging ? "none" : "transform .2s ease-out" }}
+            >
+              <polyline points={trendData.map((item, index) => `${index * chartStep},${50 - (item.amount / trendTrackMax) * 42}`).join(" ")} fill="none" stroke={C.mint} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              <polygon points={`${trendData.map((item, index) => `${index * chartStep},${50 - (item.amount / trendTrackMax) * 42}`).join(" ")} ${chartTrackWidth},50 0,50`} fill={C.mint} opacity=".08" />
+            </svg>
+          </div>
+          <div style={{ width: "100%", overflow: "hidden" }}>
+            <div style={{ display: "flex", fontSize: 8, color: "#BBB", width: chartTrackWidth, transform: `translateX(${trendTrackTranslate}px)`, transition: trendIsDragging ? "none" : "transform .2s ease-out" }}>
+              {trendData.map((item) => (
+                <span key={item.key} style={{ width: chartStep, flexShrink: 0, textAlign: "center" }}>
+                  {item.label}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -224,7 +240,7 @@ export function OverviewCard({ rangeLabel, overview, onOpen }) {
       <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 10px", marginTop: 6, fontSize: 9, color: "#666" }}>
         {overview.map((item) => (
           <span key={item.category} style={{ display: "flex", alignItems: "center", gap: 3 }}>
-            <span style={{ width: 6, height: 6, borderRadius: 1.5, background: item.category === "未分类" ? OVERVIEW_COLORS["未分类"] : OVERVIEW_COLORS[item.category], display: "inline-block" }} />
+            <span style={{ width: 6, height: 6, borderRadius: 1.5, background: item.category === "未分类" ? UNCLASSIFIED_STRIPE : OVERVIEW_COLORS[item.category], border: item.category === "未分类" ? `1px solid ${OVERVIEW_COLORS["未分类"]}` : "none", display: "inline-block" }} />
             {item.category} {item.percent}%
           </span>
         ))}
@@ -236,7 +252,7 @@ export function OverviewCard({ rangeLabel, overview, onOpen }) {
 export function TagRail({ filters, selectedFilter, unclassifiedCount, onSelect }) {
   return (
     <div style={{ margin: 0, background: "transparent", padding: "0 16px 8px" }}>
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, overscrollBehaviorX: "contain" }}>
         {filters.map((label) => {
           const active = selectedFilter === label;
           const warning = label === "未分类";
@@ -329,10 +345,9 @@ export function DayCard({ day, isExpanded, isAi, aiStop, onToggle, onItemPointer
                 onPointerMove={onItemPointerMove}
                 onPointerUp={onItemPointerUp}
                 onPointerCancel={onItemPointerUp}
-                onPointerLeave={onItemPointerUp}
-                style={{ display: "flex", alignItems: "center", padding: "7px 0", borderBottom: index < day.visibleItems.length - 1 ? `0.5px solid ${C.line}` : "none", cursor: "pointer", userSelect: "none", touchAction: "pan-y" }}
+                style={{ display: "flex", alignItems: "center", padding: "7px 0", borderBottom: index < day.visibleItems.length - 1 ? `0.5px solid ${C.line}` : "none", cursor: "pointer", userSelect: "none", touchAction: "none" }}
               >
-                <div style={{ width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, marginRight: 10, flexShrink: 0, background: category ? meta.bg : C.orangeBg, border: category ? "none" : "1.5px dashed #D85A30" }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, marginRight: 10, flexShrink: 0, background: category ? meta.bg : UNCLASSIFIED_STRIPE, border: category ? "none" : `1.5px dashed ${OVERVIEW_COLORS["未分类"]}` }}>
                   {category ? meta.icons[item.ih % meta.icons.length] : <span style={{ fontSize: 13, color: "#D85A30", fontWeight: 700 }}>?</span>}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -357,14 +372,24 @@ export function DayCard({ day, isExpanded, isAi, aiStop, onToggle, onItemPointer
 
 export function BottomNav({ aiOn, aiStop, controlOpen, controlHit, onStartControl, onEndControl, onCancelControl, onUpdateControlHit }) {
   return (
-    <div style={{ background: C.white, borderTop: `1.5px solid ${C.border}`, padding: "3px 0 8px", display: "flex", justifyContent: "space-around", alignItems: "flex-end", flexShrink: 0, zIndex: 20 }}>
+    <div style={{ background: C.white, borderTop: `1.5px solid ${C.border}`, paddingTop: 3, paddingRight: 0, paddingLeft: 0, paddingBottom: "max(env(safe-area-inset-bottom), 8px)", display: "flex", justifyContent: "space-around", alignItems: "flex-end", flexShrink: 0, zIndex: 20 }}>
       <div style={{ textAlign: "center", padding: "4px 16px", cursor: "pointer" }}>
         <GearIcon />
         <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>设置</div>
       </div>
-      <div style={{ position: "relative", textAlign: "center", cursor: "pointer", touchAction: "none" }} onPointerDown={onStartControl} onPointerUp={onEndControl} onPointerCancel={onCancelControl} onPointerLeave={onCancelControl}>
+      <div
+        style={{ position: "relative", textAlign: "center", cursor: "pointer", touchAction: "none" }}
+        onPointerDown={onStartControl}
+        onPointerMove={(event) => {
+          if (controlOpen) {
+            onUpdateControlHit.move(event.clientY);
+          }
+        }}
+        onPointerUp={onEndControl}
+        onPointerCancel={onCancelControl}
+      >
         {controlOpen && (
-          <div ref={onUpdateControlHit.ref} className="fi" onPointerMove={(event) => onUpdateControlHit.move(event.clientY)} style={{ position: "absolute", bottom: 62, left: "50%", transform: "translateX(-50%)", width: 56, height: 108, borderRadius: 28, overflow: "hidden", border: `2px solid ${C.dark}`, display: "flex", flexDirection: "column", boxShadow: "0 6px 20px rgba(0,0,0,.15)", zIndex: 30, background: C.white }}>
+          <div ref={onUpdateControlHit.ref} style={{ position: "absolute", bottom: 62, left: "50%", transform: "translateX(-50%)", width: 56, height: 108, borderRadius: 28, overflow: "hidden", border: `2px solid ${C.dark}`, display: "flex", flexDirection: "column", boxShadow: "0 6px 20px rgba(0,0,0,.15)", zIndex: 30, background: C.white, opacity: 1 }}>
             <div style={{ flex: 1, background: controlHit === "开启" ? C.mint : C.white, color: controlHit === "开启" ? C.white : C.mint, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, borderBottom: `1px solid ${C.border}` }}>开启</div>
             <div style={{ flex: 1, background: controlHit === "关闭" ? C.coral : C.white, color: controlHit === "关闭" ? C.white : C.coral, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>关闭</div>
           </div>
@@ -455,13 +480,127 @@ export function ReasonDialog({ item, onClose }) {
   );
 }
 
-export function DateRangeDialog({ visible, rangeMode, customStart, customEnd, onClose, onQuickSelect, onCustomStartChange, onCustomEndChange, onConfirmCustom }) {
+function toDateNumber(value) {
+  return new Date(`${value}T00:00:00`).getTime();
+}
+
+function formatBoundaryDate(value) {
+  const date = new Date(`${value}T00:00:00`);
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function addDays(value, days) {
+  const date = new Date(`${value}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function diffDays(start, end) {
+  return Math.round((toDateNumber(end) - toDateNumber(start)) / 86400000);
+}
+
+export function DateRangeDialog({
+  visible,
+  rangeMode,
+  customStart,
+  customEnd,
+  minDate,
+  maxDate,
+  onClose,
+  onQuickSelect,
+  onCustomStartChange,
+  onCustomEndChange,
+  onConfirmCustom,
+}) {
+  const railRef = useRef(null);
+  const frameRef = useRef(null);
+  const [dragThumb, setDragThumb] = useState(null);
+  const totalDays = Math.max(diffDays(minDate, maxDate), 1);
+  const [draftStartDay, setDraftStartDay] = useState(() => diffDays(minDate, customStart));
+  const [draftEndDay, setDraftEndDay] = useState(() => diffDays(minDate, customEnd));
+
+  const draftStartValue = addDays(minDate, draftStartDay);
+  const draftEndValue = addDays(minDate, draftEndDay);
+  const startPercent = (draftStartDay / totalDays) * 100;
+  const endPercent = (draftEndDay / totalDays) * 100;
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    setDraftStartDay(Math.max(0, Math.min(totalDays, diffDays(minDate, customStart))));
+    setDraftEndDay(Math.max(0, Math.min(totalDays, diffDays(minDate, customEnd))));
+  }, [visible, customStart, customEnd, minDate, totalDays]);
+
+  useEffect(
+    () => () => {
+      if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current);
+      }
+    },
+    [],
+  );
+
+  const syncDraftValues = (nextStartDay, nextEndDay) => {
+    if (frameRef.current) {
+      cancelAnimationFrame(frameRef.current);
+    }
+    frameRef.current = requestAnimationFrame(() => {
+      onCustomStartChange(addDays(minDate, nextStartDay));
+      onCustomEndChange(addDays(minDate, nextEndDay));
+    });
+  };
+
+  const updateDraftRange = (nextStartDay, nextEndDay) => {
+    const clampedStart = Math.max(0, Math.min(nextStartDay, nextEndDay));
+    const clampedEnd = Math.min(totalDays, Math.max(nextEndDay, clampedStart));
+    setDraftStartDay(clampedStart);
+    setDraftEndDay(clampedEnd);
+    syncDraftValues(clampedStart, clampedEnd);
+  };
+
+  const updateThumbFromClientX = (clientX) => {
+    const rect = railRef.current?.getBoundingClientRect();
+    if (!rect || !dragThumb) {
+      return;
+    }
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const nextDay = Math.round(ratio * totalDays);
+    if (dragThumb === "start") {
+      updateDraftRange(nextDay, draftEndDay);
+      return;
+    }
+    updateDraftRange(draftStartDay, nextDay);
+  };
+
+  useEffect(() => {
+    if (!dragThumb) {
+      return undefined;
+    }
+    const handlePointerMove = (event) => {
+      event.preventDefault();
+      updateThumbFromClientX(event.clientX);
+    };
+    const handlePointerUp = () => {
+      setDragThumb(null);
+    };
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [dragThumb, draftEndDay, draftStartDay, totalDays]);
+
   if (!visible) {
     return null;
   }
+
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.4)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
-      <div className="fi" onClick={(event) => event.stopPropagation()} style={{ background: C.white, borderRadius: 16, padding: 20, width: "100%", maxWidth: 320, border: `2px solid ${C.dark}` }}>
+      <div className="fi" onClick={(event) => event.stopPropagation()} style={{ background: C.white, borderRadius: 16, padding: 20, width: "100%", maxWidth: 332, border: `2px solid ${C.dark}`, transformOrigin: "center center" }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.dark, marginBottom: 12 }}>选择时间范围</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {["今天", "本周", "本月", "近三月"].map((label) => (
@@ -470,11 +609,56 @@ export function DateRangeDialog({ visible, rangeMode, customStart, customEnd, on
             </div>
           ))}
         </div>
-        <div style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>自定义范围</div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}>
-          <input type="date" value={customStart} onChange={(event) => onCustomStartChange(event.target.value)} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 12, fontFamily: "inherit" }} />
+        <div style={{ fontSize: 11, color: C.sub, marginBottom: 10 }}>自定义范围</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
+          <input
+            type="date"
+            value={draftStartValue}
+            min={minDate}
+            max={draftEndValue}
+            onChange={(event) => {
+              const nextStart = Math.max(0, Math.min(diffDays(minDate, event.target.value), draftEndDay));
+              updateDraftRange(nextStart, draftEndDay);
+            }}
+            style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 12, fontFamily: "inherit" }}
+          />
           <span style={{ color: C.muted }}>—</span>
-          <input type="date" value={customEnd} onChange={(event) => onCustomEndChange(event.target.value)} style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 12, fontFamily: "inherit" }} />
+          <input
+            type="date"
+            value={draftEndValue}
+            min={draftStartValue}
+            max={maxDate}
+            onChange={(event) => {
+              const nextEnd = Math.min(totalDays, Math.max(diffDays(minDate, event.target.value), draftStartDay));
+              updateDraftRange(draftStartDay, nextEnd);
+            }}
+            style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 12, fontFamily: "inherit" }}
+          />
+        </div>
+        <div style={{ background: "#FAFAFA", border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "14px 12px", marginBottom: 16 }}>
+          <div ref={railRef} style={{ position: "relative", height: 36, touchAction: "none" }}>
+            <div style={{ position: "absolute", left: 0, right: 0, top: 15, height: 6, borderRadius: 999, background: "#ECE8E3" }} />
+            <div style={{ position: "absolute", left: `${startPercent}%`, width: `${Math.max(endPercent - startPercent, 0)}%`, top: 15, height: 6, borderRadius: 999, background: C.dark }} />
+            {[
+              { key: "start", left: startPercent, value: draftStartValue },
+              { key: "end", left: endPercent, value: draftEndValue },
+            ].map((thumb) => (
+              <button
+                key={thumb.key}
+                type="button"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setDragThumb(thumb.key);
+                }}
+                style={{ position: "absolute", left: `${thumb.left}%`, top: 6, width: 18, height: 24, borderRadius: 999, transform: "translateX(-50%)", border: `2px solid ${C.dark}`, background: C.white, boxShadow: "0 2px 10px rgba(0,0,0,.12)", cursor: "grab" }}
+              />
+            ))}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.sub, marginTop: 10 }}>
+            <span>MIN: {formatBoundaryDate(minDate)}</span>
+            <span>MAX: {formatBoundaryDate(maxDate)}</span>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <div onClick={onClose} style={{ flex: 1, padding: 10, borderRadius: 10, border: `1.5px solid ${C.border}`, textAlign: "center", fontSize: 13, color: "#666", cursor: "pointer" }}>取消</div>

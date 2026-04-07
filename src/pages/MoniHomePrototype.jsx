@@ -26,10 +26,13 @@ import {
   StatsBar,
   TagRail,
 } from "../features/moni-home/components.jsx";
+import { triggerImpact } from "../platform/haptics.js";
 
 export default function MoniHome() {
+  const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [trendOffset, setTrendOffset] = useState(0);
+  const [trendDragShift, setTrendDragShift] = useState(0);
   const [selectedFilter, setSelectedFilter] = useState("全部");
   const [aiOn, setAiOn] = useState(false);
   const [aiStop, setAiStop] = useState(false);
@@ -59,12 +62,23 @@ export default function MoniHome() {
   const trendSwipeRef = useRef(null);
   const pressRef = useRef(null);
   const hoverCategoryRef = useRef(null);
+  const dragLockRef = useRef(null);
 
   const range = useMemo(() => getRange(rangeMode, customStart, customEnd), [rangeMode, customStart, customEnd]);
+  const rangeBounds = useMemo(() => {
+    const dates = [...DAYS.map((day) => day.id), ...INCOME.map((item) => item.date), ...TREND.map((item) => item.key)].sort();
+    return {
+      min: dates[0],
+      max: dates[dates.length - 1],
+    };
+  }, []);
   const maxTrendOffset = Math.max(0, TREND.length - 7);
-  const trendStart = Math.max(0, TREND.length - 7 - trendOffset);
-  const trendSlice = TREND.slice(trendStart, trendStart + 7);
-  const trendMax = Math.max(...trendSlice.map((item) => item.amount), 1);
+  const trendStepPx = 260 / 6;
+  const trendStartIndex = Math.max(0, TREND.length - 7 - trendOffset);
+  const trendMinTranslate = -(maxTrendOffset * trendStepPx);
+  const trendBaseTranslate = -(trendStartIndex * trendStepPx);
+  const trendTrackTranslate = clamp(trendBaseTranslate + trendDragShift, trendMinTranslate, 0);
+  const trendTrackMax = Math.max(...TREND.map((item) => item.amount), 1);
   const rangeDays = useMemo(() => DAYS.filter((day) => isInRange(day.id, range)), [range]);
 
   const filterItems = useCallback(
@@ -117,7 +131,7 @@ export default function MoniHome() {
     const visibleIds = renderDays
       .filter((day) => {
         const rect = dayRefs.current[day.id]?.getBoundingClientRect();
-        return rect && rect.top < containerRect.bottom - 32 && rect.bottom > containerRect.top + 64;
+        return rect && rect.top >= containerRect.top + 24 && rect.top < containerRect.bottom - 72;
       })
       .map((day) => day.id);
 
@@ -252,17 +266,23 @@ export default function MoniHome() {
     if (!trendSwipeRef.current) {
       return;
     }
-    const { sx, ex } = trendSwipeRef.current;
+    const { sx, ex, sy, ey, axis } = trendSwipeRef.current;
     const deltaX = ex - sx;
-    if (Math.abs(deltaX) > 28) {
-      if (deltaX < 0) {
-        setTrendOffset((prev) => Math.min(maxTrendOffset, prev + 1));
+    const deltaY = ey - sy;
+    if (axis === "horizontal") {
+      const nextStartIndex = clamp(Math.round(-trendTrackTranslate / trendStepPx), 0, maxTrendOffset);
+      setTrendOffset(maxTrendOffset - nextStartIndex);
+      setTrendDragShift(0);
+    } else if (Math.abs(deltaY) > 28 && Math.abs(deltaY) > Math.abs(deltaX)) {
+      if (deltaY > 0) {
+        manualSwitch(Math.max(0, carouselIndex - 1));
       } else {
-        setTrendOffset((prev) => Math.max(0, prev - 1));
+        manualSwitch(Math.min(1, carouselIndex + 1));
       }
     }
+    setTrendDragShift(0);
     trendSwipeRef.current = null;
-  }, [maxTrendOffset]);
+  }, [carouselIndex, manualSwitch, maxTrendOffset, trendStepPx, trendTrackTranslate]);
 
   const handleTrendPointerDown = useCallback((event) => {
     if (event.pointerType === "mouse" && event.button !== 0) {
@@ -293,6 +313,7 @@ export default function MoniHome() {
     }
     if (next.axis === "horizontal") {
       event.preventDefault();
+      setTrendDragShift(event.clientX - next.sx);
     }
     trendSwipeRef.current = next;
   }, []);
@@ -309,6 +330,34 @@ export default function MoniHome() {
   const cancelPendingPress = useCallback(() => {
     pressRef.current = null;
     clearTimeout(holdRef.current);
+  }, []);
+
+  const lockDragScroll = useCallback(() => {
+    if (dragLockRef.current) {
+      return;
+    }
+    dragLockRef.current = {
+      bodyOverflow: document.body.style.overflow,
+      containerOverflowY: scrollRef.current?.style.overflowY,
+      containerTouchAction: scrollRef.current?.style.touchAction,
+    };
+    document.body.style.overflow = "hidden";
+    if (scrollRef.current) {
+      scrollRef.current.style.overflowY = "hidden";
+      scrollRef.current.style.touchAction = "none";
+    }
+  }, []);
+
+  const unlockDragScroll = useCallback(() => {
+    if (!dragLockRef.current) {
+      return;
+    }
+    document.body.style.overflow = dragLockRef.current.bodyOverflow;
+    if (scrollRef.current) {
+      scrollRef.current.style.overflowY = dragLockRef.current.containerOverflowY ?? "auto";
+      scrollRef.current.style.touchAction = dragLockRef.current.containerTouchAction ?? "auto";
+    }
+    dragLockRef.current = null;
   }, []);
 
   const resolveHoverCategory = useCallback((clientX, clientY) => {
@@ -328,16 +377,20 @@ export default function MoniHome() {
         pointerId: event.pointerId,
         startX: event.clientX,
         startY: event.clientY,
+        startScrollTop: scrollRef.current?.scrollTop ?? 0,
+        mode: "pending",
       };
       startHold(() => {
         const point = { x: pressRef.current?.startX ?? event.clientX, y: pressRef.current?.startY ?? event.clientY };
+        lockDragScroll();
         setDragItem(item);
         setDragPoint(point);
         hoverCategoryRef.current = null;
         setHoverCategory(null);
+        void triggerImpact("light");
       });
     },
-    [startHold],
+    [lockDragScroll, startHold],
   );
 
   const handleItemPointerMove = useCallback(
@@ -345,9 +398,26 @@ export default function MoniHome() {
       if (!pressRef.current || pressRef.current.pointerId !== event.pointerId || dragItem) {
         return;
       }
-      const deltaX = Math.abs(event.clientX - pressRef.current.startX);
-      const deltaY = Math.abs(event.clientY - pressRef.current.startY);
-      if (deltaX > 8 || deltaY > 8) {
+      const pressState = pressRef.current;
+      const deltaX = event.clientX - pressState.startX;
+      const deltaY = event.clientY - pressState.startY;
+
+      if (pressState.mode === "scroll") {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = pressState.startScrollTop - deltaY;
+        }
+        return;
+      }
+
+      if (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8) {
+        if (Math.abs(deltaY) > Math.abs(deltaX)) {
+          clearTimeout(holdRef.current);
+          pressRef.current = { ...pressState, mode: "scroll" };
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop = pressState.startScrollTop - deltaY;
+          }
+          return;
+        }
         cancelPendingPress();
       }
     },
@@ -355,26 +425,32 @@ export default function MoniHome() {
   );
 
   const handleItemPointerUp = useCallback(() => {
+    if (pressRef.current) {
+      pressRef.current = null;
+    }
     if (!dragItem) {
-      cancelPendingPress();
+      clearTimeout(holdRef.current);
     }
   }, [cancelPendingPress, dragItem]);
 
   const handleDropCategory = useCallback(
     (category) => {
       setReasonItem({ ...dragItem, nc: category });
+      unlockDragScroll();
       setDragItem(null);
       setDragPoint(null);
       setHoverCategory(null);
       hoverCategoryRef.current = null;
+      void triggerImpact("medium");
     },
-    [dragItem],
+    [dragItem, unlockDragScroll],
   );
 
   const handleStartControl = useCallback(() => {
     startHold(() => {
       setControlOpen(true);
       setControlHit(null);
+      void triggerImpact("light");
     });
   }, [startHold]);
 
@@ -386,9 +462,11 @@ export default function MoniHome() {
     if (controlHit === "开启") {
       setAiOn(true);
       setAiStop(false);
+      void triggerImpact("medium");
     }
     if (controlHit === "关闭" && aiOn) {
       setAiStop(true);
+      void triggerImpact("medium");
       setTimeout(() => {
         setAiOn(false);
         setAiStop(false);
@@ -400,7 +478,11 @@ export default function MoniHome() {
 
   const handleCancelControl = useCallback(() => {
     clearTimeout(holdRef.current);
-  }, []);
+    if (controlOpen) {
+      setControlOpen(false);
+      setControlHit(null);
+    }
+  }, [controlOpen]);
 
   const updateControlHit = useCallback((clientY) => {
     const rect = controlRef.current?.getBoundingClientRect();
@@ -439,6 +521,7 @@ export default function MoniHome() {
         handleDropCategory(category);
         return;
       }
+      unlockDragScroll();
       setDragItem(null);
       setDragPoint(null);
       setHoverCategory(null);
@@ -454,7 +537,13 @@ export default function MoniHome() {
     };
   }, [dragItem, handleDropCategory, resolveHoverCategory]);
 
-  useEffect(() => () => clearTimeout(holdRef.current), []);
+  useEffect(
+    () => () => {
+      clearTimeout(holdRef.current);
+      unlockDragScroll();
+    },
+    [unlockDragScroll],
+  );
 
   const boardHandlers = {
     onPointerDown: handleBoardPointerDown,
@@ -470,12 +559,13 @@ export default function MoniHome() {
     onPointerMove: handleTrendPointerMove,
     onPointerUp: handleTrendSwipeEnd,
     onPointerCancel: () => {
+      setTrendDragShift(0);
       trendSwipeRef.current = null;
     },
   };
 
   return (
-    <div style={{ width: "100%", maxWidth: 390, margin: "0 auto", background: C.bg, borderRadius: 24, border: `2.5px solid ${C.dark}`, overflow: "hidden", position: "relative", fontFamily: "'Nunito',-apple-system,sans-serif", height: PHONE_FRAME_HEIGHT, display: "flex", flexDirection: "column" }}>
+    <div style={{ width: "100%", maxWidth: 390, margin: "0 auto", background: C.bg, borderRadius: 24, border: `2.5px solid ${C.dark}`, overflow: "hidden", position: "relative", fontFamily: "'Nunito',-apple-system,sans-serif", height: PHONE_FRAME_HEIGHT, display: "flex", flexDirection: "column", paddingTop: "env(safe-area-inset-top)" }}>
       <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
       <style>{`@keyframes rb{0%{border-color:${C.coral}}25%{border-color:${C.yellow}}50%{border-color:${C.blue}}75%{border-color:${C.mint}}100%{border-color:${C.coral}}}@keyframes rbs{0%{box-shadow:0 0 0 2.5px ${C.coral},0 0 12px ${C.coral}44}25%{box-shadow:0 0 0 2.5px ${C.yellow},0 0 12px ${C.yellow}44}50%{box-shadow:0 0 0 2.5px ${C.blue},0 0 12px ${C.blue}44}75%{box-shadow:0 0 0 2.5px ${C.mint},0 0 12px ${C.mint}44}100%{box-shadow:0 0 0 2.5px ${C.coral},0 0 12px ${C.coral}44}}@keyframes p{0%,100%{opacity:1}50%{opacity:.35}}@keyframes sk{0%,100%{opacity:.42}50%{opacity:.16}}@keyframes fu{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}.ab{animation:rb 3s linear infinite;border-width:2.5px;border-style:solid}.ag{animation:rbs 3s linear infinite}.sk{animation:sk 1.7s ease-in-out infinite;background:#ddd;border-radius:4px}.fi{animation:fu .28s ease-out}*{box-sizing:border-box}::-webkit-scrollbar{display:none}`}</style>
       <Decor />
@@ -490,19 +580,26 @@ export default function MoniHome() {
         </div>
       </div>
 
-      <div ref={scrollRef} onScroll={handleScroll} style={{ flex: 1, overflowY: "auto", overflowX: "hidden", position: "relative", zIndex: 1 }}>
+      <div ref={scrollRef} data-scroll-container onScroll={handleScroll} style={{ flex: 1, overflowY: "auto", overflowX: "hidden", position: "relative", zIndex: 1 }}>
         <DisplayBoard
           currentIndex={carouselIndex}
           budgetPct={budgetPct}
           budgetColor={budgetColor}
           hasBudget={HAS_BUDGET}
-          trendSlice={trendSlice}
-          trendMax={trendMax}
-          trendOffset={trendOffset}
+          trendData={TREND}
+          trendTrackMax={trendTrackMax}
+          trendTrackTranslate={trendTrackTranslate}
+          trendIsDragging={trendDragShift !== 0}
           maxTrendOffset={maxTrendOffset}
           onManualSwitch={manualSwitch}
-          onTrendForward={() => setTrendOffset((prev) => Math.min(maxTrendOffset, prev + 1))}
-          onTrendBackward={() => setTrendOffset((prev) => Math.max(0, prev - 1))}
+          onTrendForward={() => {
+            setTrendDragShift(0);
+            setTrendOffset((prev) => Math.min(maxTrendOffset, prev + 1));
+          }}
+          onTrendBackward={() => {
+            setTrendDragShift(0);
+            setTrendOffset((prev) => Math.max(0, prev - 1));
+          }}
           boardHandlers={boardHandlers}
           trendHandlers={trendHandlers}
         />
@@ -511,7 +608,17 @@ export default function MoniHome() {
         <StatsBar rangeLabel={range.label} expenseTotal={expenseTotal} incomeTotal={incomeTotal} count={txCount} isCustom={rangeMode === "自定义"} />
         <OverviewCard rangeLabel={range.label} overview={overview} onOpen={() => setRangeDialogOpen(true)} />
 
-        <div ref={railRef} style={{ position: "sticky", top: 0, zIndex: 15, background: C.bg, paddingTop: stickyRail ? 8 : 0, borderBottom: stickyRail ? `1px solid ${C.border}` : "none" }}>
+        <div
+          ref={railRef}
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 15,
+            background: C.bg,
+            paddingTop: 8,
+            borderBottom: `1px solid ${stickyRail ? C.border : "transparent"}`,
+          }}
+        >
           <TagRail filters={FILTERS} selectedFilter={selectedFilter} unclassifiedCount={unclassifiedCount} onSelect={setSelectedFilter} />
         </div>
 
@@ -546,6 +653,18 @@ export default function MoniHome() {
         onUpdateControlHit={{ ref: controlRef, move: updateControlHit }}
       />
 
+      {controlOpen && (
+        <div
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setControlOpen(false);
+            setControlHit(null);
+          }}
+          style={{ position: "absolute", inset: 0, zIndex: 25, background: "transparent" }}
+        />
+      )}
+
       <DragOverlay
         dragItem={dragItem}
         dragPoint={dragPoint}
@@ -557,6 +676,7 @@ export default function MoniHome() {
         }}
         onDrop={handleDropCategory}
         onClose={() => {
+          unlockDragScroll();
           setDragItem(null);
           setDragPoint(null);
           setHoverCategory(null);
@@ -569,6 +689,8 @@ export default function MoniHome() {
         rangeMode={rangeMode}
         customStart={customStart}
         customEnd={customEnd}
+        minDate={rangeBounds.min}
+        maxDate={rangeBounds.max}
         onClose={() => setRangeDialogOpen(false)}
         onQuickSelect={(mode) => {
           setRangeMode(mode);
