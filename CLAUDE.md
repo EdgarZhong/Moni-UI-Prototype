@@ -8,12 +8,13 @@
 
 本仓库不含正式后端实现，只包含前端可视原型与配套规格文档。原型使用与正式产品完全一致的技术栈，确保设计确认后可直接迁移集成到主仓库（PixelBill / Moni 主工程）。
 
-> **当前阶段：首页规格收口与集成准备**
-> - 目标：完成首页原型、需求文档、AI 规格文档之间的口径收敛，为后续逻辑层 / 表现层集成提供执行依据
+> **当前阶段：首页收口完成，进入记账页原型集成阶段**
+> - 目标：完成记账页文档收敛、参考 JSX 迁移、实际原型接入与交互验证
 > - 设计权威文档：`DESIGN.md`（UI/UX 唯一执行标准）
 > - 首页集成文档：`docs/Moni_Homepage_Integration_Spec.md`
 > - 预算系统文档：`docs/Moni_Budget_System_Spec.md`
-> - 功能需求参考：`docs/Moni_Requirements_v2.md`
+> - 记账页规格文档：`docs/Moni_Entry_Page_Spec_v1.md`
+> - 功能需求参考：`docs/Moni_Requirements_v3.md`
 >
 > **当前仓库角色**
 > - 当前目录已作为主开发仓库下的原型参考子仓库使用
@@ -90,7 +91,9 @@ moni-ui-prototype/
 |----------|----------|----------|
 | UI/UX 设计标准 | 唯一执行标准，含首页全部交互规则、手势实现规范 | `DESIGN.md` |
 | 品牌视觉规范 | 品牌色、字体、SVG 资产、Memphis 装饰规则 | `Moni_Brand_Design_Spec.md` |
-| 功能需求文档 | 产品功能需求（设计实现以 DESIGN.md 为准） | `Moni_Requirements_v2.md` |
+| 功能需求文档 | 产品功能需求（设计实现以 DESIGN.md 为准） | `docs/Moni_Requirements_v3.md` |
+| 记账页交互规格 | 记账页信息架构、交互流程、静态视觉约束边界 | `docs/Moni_Entry_Page_Spec_v1.md` |
+| 记账页集成规格 | 记账页表现层 / 逻辑层交互口径、读模型与动作边界 | `docs/Moni_Entry_Page_Integration_Spec.md` |
 | 首页集成规格 | 首页组件业务逻辑、表现层 / 逻辑层动作、联调边界 | `docs/Moni_Homepage_Integration_Spec.md` |
 | 预算系统规格 | 月度总预算的显示层、逻辑层、持久化层与本轮范围 | `docs/Moni_Budget_System_Spec.md` |
 | AI 自学习设计 | 后端 AI 功能设计参考（原型阶段不直接涉及） | `AI_SELF_LEARNING_DESIGN_v6.md` |
@@ -194,13 +197,15 @@ npx cap run android
 
 ### 进行中 / 待修复 🚧
 
-**当前重点：文档侧已收口，代码侧集成与交互修复待下一阶段执行**
+**当前重点：记账页文档收敛与原型集成**
 
 | 任务 ID | 任务名称 | 优先级 | 状态 | 具体描述 |
 |---------|----------|--------|------|----------|
 | DOC-01 | 首页文档闭环 | P0 | 已完成 | `DESIGN.md`、`Moni_Requirements_v2.md`、`AI_SELF_LEARNING_DESIGN_v6.md`、首页原型代码之间的首页业务口径已完成交叉核对 |
 | DOC-02 | 首页集成规格输出 | P0 | 已完成 | 已形成首页集成专用执行文档，供主仓库协作者联调使用 |
 | DOC-03 | 预算系统规格输出 | P0 | 已完成 | 已形成预算系统专项文档，冻结月度总预算本轮范围 |
+| DOC-04 | 记账页静态规格收敛 | P0 | 已完成 | 已将过细静态描述降级为参考 JSX / 实现为准，并写入当前按钮视觉口径 |
+| DOC-05 | 记账页集成规格输出 | P0 | 已完成 | 已新增 `docs/Moni_Entry_Page_Integration_Spec.md`，定义记账页读模型、动作与联调边界 |
 | GES-01 | 全局 CSS 防御层 | P0 | 待执行 | 在代码阶段按 DESIGN.md 23.1 节补齐 6 条全局规则 |
 | GES-02 | AI 控制条指针追踪修复 | P0 | 待执行 | 见下方详细方案 |
 | GES-03 | AI 控制条 pointerleave 误触修复 | P0 | 待执行 | 见下方详细方案 |
@@ -209,6 +214,10 @@ npx cap run android
 | INT-02 | AI 引擎状态接入 | P0 | 待执行 | 接入 AI 工作态、软停止状态、范围外 backlog 感知 |
 | INT-03 | 月度总预算接入 | P0 | 待执行 | 按预算系统专项文档接入首页预算卡所需字段与无预算态分支 |
 | INT-04 | 手动记录条目显示接入 | P1 | 待执行 | 在首页流水中支持“AI reasoning 留空 + 来源显示手动记录” |
+| ENT-01 | 记账页原型接入 | P0 | 进行中 | 以 `refer/MoniEntryPage (1).jsx` 为静态基准、以 `refer/MoniEntryPrototype.jsx` 为交互参考接入实际原型 |
+| ENT-02 | 记账页静态视觉校准 | P0 | 进行中 | 静态态“记一笔”按钮采用更收窄版本，长按后收缩为黑色铅笔悬浮 token |
+| ENT-03 | 记账页交互联调 | P0 | 进行中 | 已落地长按、跟手拖拽、分类命中、投放录入、保存反馈原型；待继续验证与接真实逻辑层 |
+| ENT-04 | 记账页静态截图验证 | P0 | 待执行 | 本地启动原型，截图核对静态状态后再继续交互微调 |
 | GES-09 | 交互全场景 F12 回归测试 | P0 | 待执行 | 在代码侧改动落地后回归 DESIGN.md 23.5 节全部测试项 |
 
 ---

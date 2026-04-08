@@ -81,12 +81,16 @@ export function GearIcon() {
   );
 }
 
-export function NoteIcon() {
+export function NoteIcon({ active = false }) {
+  // 允许首页与记账页共用同一套图标组件。
+  // 当记账页为当前激活页时，使用更深的描边和文字色，保持底部导航语义清晰。
+  const stroke = active ? C.dark : "#8E8E8E";
+  const strokeWidth = active ? 2 : 1.6;
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <rect x="4" y="3" width="16" height="18" rx="3" stroke="#8E8E8E" strokeWidth="1.6" />
-      <path d="M8 8h8M8 12h8M12 16h4" stroke="#8E8E8E" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M12 9v6M9 12h6" stroke="#8E8E8E" strokeWidth="1.4" strokeLinecap="round" opacity=".55" />
+      <rect x="4" y="3" width="16" height="18" rx="3" stroke={stroke} strokeWidth={strokeWidth} />
+      <path d="M8 8h8M8 12h8M12 16h4" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <path d="M12 9v6M9 12h6" stroke={stroke} strokeWidth="1.4" strokeLinecap="round" opacity=".55" />
     </svg>
   );
 }
@@ -370,7 +374,7 @@ export function DayCard({ day, isExpanded, isAi, aiStop, onToggle, onItemPointer
   );
 }
 
-export function BottomNav({ aiOn, aiStop, controlOpen, controlHit, onStartControl, onEndControl, onCancelControl, onUpdateControlHit }) {
+export function BottomNav({ aiOn, aiStop, controlOpen, controlHit, onStartControl, onEndControl, onCancelControl, onUpdateControlHit, onOpenEntry }) {
   return (
     <div style={{ background: C.white, borderTop: `1.5px solid ${C.border}`, paddingTop: 3, paddingRight: 0, paddingLeft: 0, paddingBottom: "max(env(safe-area-inset-bottom), 8px)", display: "flex", justifyContent: "space-around", alignItems: "flex-end", flexShrink: 0, zIndex: 20 }}>
       <div style={{ textAlign: "center", padding: "4px 16px", cursor: "pointer" }}>
@@ -401,8 +405,11 @@ export function BottomNav({ aiOn, aiStop, controlOpen, controlHit, onStartContro
           <div style={{ fontSize: 10, fontWeight: 700, marginTop: 3, color: aiOn ? (aiStop ? C.amber : C.mint) : C.dark }}>{aiOn ? (aiStop ? "停止中…" : "运行中") : "首页"}</div>
         </div>
       </div>
-      <div style={{ textAlign: "center", padding: "4px 16px", cursor: "pointer" }}>
-        <NoteIcon />
+      <div
+        onClick={onOpenEntry}
+        style={{ textAlign: "center", padding: "4px 16px", cursor: onOpenEntry ? "pointer" : "default" }}
+      >
+        <NoteIcon active={false} />
         <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>记账</div>
       </div>
     </div>

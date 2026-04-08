@@ -28,7 +28,7 @@ import {
 } from "../features/moni-home/components.jsx";
 import { triggerImpact } from "../platform/haptics.js";
 
-export default function MoniHome() {
+export default function MoniHome({ onOpenEntry }) {
   const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [trendOffset, setTrendOffset] = useState(0);
@@ -651,6 +651,8 @@ export default function MoniHome() {
         onEndControl={handleEndControl}
         onCancelControl={handleCancelControl}
         onUpdateControlHit={{ ref: controlRef, move: updateControlHit }}
+        // 首页中的“记账”入口负责切换到记账页原型，便于在同一台设备框中联看两页。
+        onOpenEntry={onOpenEntry}
       />
 
       {controlOpen && (
