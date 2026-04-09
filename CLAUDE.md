@@ -8,8 +8,8 @@
 
 本仓库不含正式后端实现，只包含前端可视原型与配套规格文档。原型使用与正式产品完全一致的技术栈，确保设计确认后可直接迁移集成到主仓库（PixelBill / Moni 主工程）。
 
-> **当前阶段：首页与记账页已接通，进入设置页规格收敛、集成文档补齐与细节修订阶段**
-> - 目标：先以 `docs/Moni_Settings_Spec_v1.md` 为唯一基准，收敛设置页相关文档冲突，补齐设置页集成文档与测试 SOP，再实施设置页原型细化
+> **当前阶段：首页、记账页、设置页原型与核心文档已完成收敛，进入主仓库集成前的最终冻结交付检查阶段**
+> - 目标：以 `docs/Moni_Settings_Spec_v1.md` 与当前设置页原型代码为基准，冻结 `DESIGN.md` 与设置页集成文档，作为主仓库最终集成输入
 > - 设计权威文档：`DESIGN.md`（UI/UX 唯一执行标准）
 > - 首页集成文档：`docs/intergration_output/Moni_Homepage_Integration_Spec.md`
 > - 记账页集成文档：`docs/intergration_output/Moni_Entry_Page_Integration_Spec.md`
@@ -217,6 +217,7 @@ npx cap run android
 | DOC-06 | 设置页规格冲突收敛 | P0 | 已完成 | 已以 `docs/Moni_Settings_Spec_v1.md` 为唯一基准，清理设置页相关文档的过时描述与冲突口径 |
 | DOC-07 | 设置页 UI/UX 规格同步 | P0 | 已完成 | 已按用户新增设置页细化口径更新 `docs/Moni_Settings_UIUX_Spec_v1.md`，同步空态、反馈、按钮与提示文案 |
 | DOC-08 | 设置页集成规格输出 | P0 | 已完成 | 已新增去臆测版 `docs/intergration_output/Moni_Settings_Integration_Spec.md`，仅保留集成约束与测试链路 |
+| DOC-09 | 设置页最终交付文档冻结检查 | P0 | 已完成 | 已按 `docs/Moni_Settings_Spec_v1.md` + 设置页原型代码复核 `DESIGN.md` 与 `docs/intergration_output/Moni_Settings_Integration_Spec.md`，清理旧口径并冻结交付 |
 | GES-01 | 全局 CSS 防御层 | P0 | 待执行 | 在代码阶段按 DESIGN.md 23.1 节补齐 6 条全局规则 |
 | GES-02 | AI 控制条指针追踪修复 | P0 | 待执行 | 见下方详细方案 |
 | GES-03 | AI 控制条 pointerleave 误触修复 | P0 | 待执行 | 见下方详细方案 |
