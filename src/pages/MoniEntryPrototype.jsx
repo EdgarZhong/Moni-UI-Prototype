@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { C, CAT, DAYS, PHONE_FRAME_HEIGHT } from "../features/moni-home/config.js";
 import { getCategory } from "../features/moni-home/helpers.js";
-import { Decor, GearIcon, Logo, NavIcon, NoteIcon } from "../features/moni-home/components.jsx";
+import { Decor, GearIcon, NavIcon, NoteIcon, TopHeader } from "../features/moni-home/components.jsx";
 
 /**
  * 记账页“最近流水”不是一个独立数据源，也不是本页会话内的临时草稿区。
@@ -718,7 +718,7 @@ function SuccessToast({ visible, entry }) {
   );
 }
 
-function EntryBottomNav({ onOpenHome }) {
+function EntryBottomNav({ onOpenHome, onOpenSettings }) {
   return (
     <div
       style={{
@@ -733,7 +733,7 @@ function EntryBottomNav({ onOpenHome }) {
         zIndex: 20,
       }}
     >
-      <div style={{ textAlign: "center", padding: "4px 16px" }}>
+      <div onClick={onOpenSettings} style={{ textAlign: "center", padding: "4px 16px", cursor: onOpenSettings ? "pointer" : "default" }}>
         <GearIcon />
         <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>设置</div>
       </div>
@@ -764,7 +764,14 @@ function EntryBottomNav({ onOpenHome }) {
   );
 }
 
-export default function MoniEntryPrototype({ onOpenHome }) {
+export default function MoniEntryPrototype({
+  onOpenHome,
+  onOpenSettings,
+  currentLedgerName = "日常开销",
+  ledgers = [],
+  activeLedgerId = "",
+  onChangeActiveLedgerId = () => {},
+}) {
   const recentReferenceEntries = useMemo(() => buildRecentReferenceEntries(), []);
   const [phase, setPhase] = useState("idle");
   const [hoverCat, setHoverCat] = useState(null);
@@ -918,13 +925,15 @@ export default function MoniEntryPrototype({ onOpenHome }) {
         minHeight: PHONE_FRAME_HEIGHT,
         maxHeight: PHONE_FRAME_HEIGHT,
         background: C.bg,
-        borderRadius: 32,
+        borderRadius: 24,
+        border: `2.5px solid ${C.dark}`,
         overflow: "hidden",
         position: "relative",
         display: "flex",
         flexDirection: "column",
-        fontFamily: "-apple-system, 'Helvetica Neue', 'PingFang SC', sans-serif",
-        boxShadow: "0 8px 40px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06)",
+        fontFamily: "'Nunito', -apple-system, 'Helvetica Neue', 'PingFang SC', sans-serif",
+        boxShadow: "0 20px 60px rgba(0,0,0,.18)",
+        paddingTop: "env(safe-area-inset-top)",
       }}
     >
       <Decor />
@@ -937,21 +946,8 @@ export default function MoniEntryPrototype({ onOpenHome }) {
         input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
       `}</style>
 
-      <div
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 10,
-          background: C.bg,
-          padding: "14px 16px 8px",
-          borderBottom: `1px solid ${C.border}22`,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Logo />
-          <div style={{ fontSize: 14, fontWeight: 700, color: C.dark, padding: "4px 12px", borderRadius: 8, background: C.white, border: `1.5px solid ${C.border}` }}>日常开销 ▾</div>
-        </div>
-      </div>
+      {/* 使用共享顶栏，保证首页与记账页的品牌位置、账本胶囊样式和间距一致。 */}
+      <TopHeader mode="ledger" ledgerName={currentLedgerName} ledgers={ledgers} activeLedgerId={activeLedgerId} onSelectLedger={onChangeActiveLedgerId} />
 
       <div style={{ flex: 1, overflowY: "auto", position: "relative", zIndex: 1 }}>
         <div style={{ padding: "12px 16px 6px" }}>
@@ -993,7 +989,7 @@ export default function MoniEntryPrototype({ onOpenHome }) {
         <div style={{ height: 88 }} />
       </div>
 
-      <EntryBottomNav onOpenHome={onOpenHome} />
+      <EntryBottomNav onOpenHome={onOpenHome} onOpenSettings={onOpenSettings} />
 
       <CategoryOverlay
         visible={phase === "selecting" || phase === "dragging"}

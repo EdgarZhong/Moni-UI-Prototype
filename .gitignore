@@ -10,3 +10,4 @@ pnpm-debug.log*
 .claude/
 SOURCE_DOC.md
 .codex
+.archive/

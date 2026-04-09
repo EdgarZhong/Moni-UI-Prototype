@@ -8,12 +8,15 @@
 
 本仓库不含正式后端实现，只包含前端可视原型与配套规格文档。原型使用与正式产品完全一致的技术栈，确保设计确认后可直接迁移集成到主仓库（PixelBill / Moni 主工程）。
 
-> **当前阶段：首页收口完成，进入记账页原型集成阶段**
-> - 目标：完成记账页文档收敛、参考 JSX 迁移、实际原型接入与交互验证
+> **当前阶段：首页与记账页已接通，进入设置页规格收敛、集成文档补齐与细节修订阶段**
+> - 目标：先以 `docs/Moni_Settings_Spec_v1.md` 为唯一基准，收敛设置页相关文档冲突，补齐设置页集成文档与测试 SOP，再实施设置页原型细化
 > - 设计权威文档：`DESIGN.md`（UI/UX 唯一执行标准）
-> - 首页集成文档：`docs/Moni_Homepage_Integration_Spec.md`
-> - 预算系统文档：`docs/Moni_Budget_System_Spec.md`
+> - 首页集成文档：`docs/intergration_output/Moni_Homepage_Integration_Spec.md`
+> - 记账页集成文档：`docs/intergration_output/Moni_Entry_Page_Integration_Spec.md`
+> - 预算系统文档：`docs/Moni_Budget_System_Spec_v2.md`
 > - 记账页规格文档：`docs/Moni_Entry_Page_Spec_v1.md`
+> - 设置系统规格：`docs/Moni_Settings_Spec_v1.md`
+> - 设置页 UI/UX 规格：`docs/Moni_Settings_UIUX_Spec_v1.md`
 > - 功能需求参考：`docs/Moni_Requirements_v3.md`
 >
 > **当前仓库角色**
@@ -58,10 +61,12 @@ moni-ui-prototype/
 ├── docs/                          # 项目文档
 │   ├── DESIGN.md                  # UI/UX 唯一设计标准（核心）
 │   ├── Moni_Brand_Design_Spec.md  # 品牌视觉与 SVG 资产
-│   ├── Moni_Requirements_v2.md    # 功能需求参考
-│   ├── Moni_Homepage_Integration_Spec.md  # 首页表现层 / 逻辑层集成规格
-│   ├── Moni_Budget_System_Spec.md  # 预算系统专项规格
-│   ├── AI_SELF_LEARNING_DESIGN_v6.md  # AI 自学习功能设计
+│   ├── Moni_Requirements_v3.md    # 功能需求参考
+│   ├── Moni_Settings_Spec_v1.md   # 设置系统统一规格
+│   ├── Moni_Settings_UIUX_Spec_v1.md # 设置页 UI/UX 规格
+│   ├── Moni_Budget_System_Spec_v2.md  # 预算系统专项规格
+│   ├── AI_SELF_LEARNING_DESIGN_v7.md  # AI 自学习功能设计
+│   ├── intergration_output/       # 页面级集成规格输出
 │   └── reference/                 # 历史设计稿、聊天沉淀与归档参考
 ├── src/
 │   ├── features/
@@ -93,10 +98,13 @@ moni-ui-prototype/
 | 品牌视觉规范 | 品牌色、字体、SVG 资产、Memphis 装饰规则 | `Moni_Brand_Design_Spec.md` |
 | 功能需求文档 | 产品功能需求（设计实现以 DESIGN.md 为准） | `docs/Moni_Requirements_v3.md` |
 | 记账页交互规格 | 记账页信息架构、交互流程、静态视觉约束边界 | `docs/Moni_Entry_Page_Spec_v1.md` |
-| 记账页集成规格 | 记账页表现层 / 逻辑层交互口径、读模型与动作边界 | `docs/Moni_Entry_Page_Integration_Spec.md` |
-| 首页集成规格 | 首页组件业务逻辑、表现层 / 逻辑层动作、联调边界 | `docs/Moni_Homepage_Integration_Spec.md` |
-| 预算系统规格 | 月度总预算的显示层、逻辑层、持久化层与本轮范围 | `docs/Moni_Budget_System_Spec.md` |
-| AI 自学习设计 | 后端 AI 功能设计参考（原型阶段不直接涉及） | `AI_SELF_LEARNING_DESIGN_v6.md` |
+| 记账页集成规格 | 记账页表现层 / 逻辑层交互口径、读模型与动作边界 | `docs/intergration_output/Moni_Entry_Page_Integration_Spec.md` |
+| 设置系统规格 | 设置页信息架构、作用域、完整设置清单与裁决顺序 | `docs/Moni_Settings_Spec_v1.md` |
+| 设置页 UI/UX 规格 | 设置页视觉数值、二级页交互规则、弹窗与动作位置标准 | `docs/Moni_Settings_UIUX_Spec_v1.md` |
+| 设置页集成规格 | 设置页表现层 / 逻辑层接线约束、保存边界、刷新策略、验收口径 | `docs/intergration_output/Moni_Settings_Integration_Spec.md` |
+| 首页集成规格 | 首页组件业务逻辑、表现层 / 逻辑层动作、联调边界 | `docs/intergration_output/Moni_Homepage_Integration_Spec.md` |
+| 预算系统规格 | 月度总预算的显示层、逻辑层、持久化层与本轮范围 | `docs/Moni_Budget_System_Spec_v2.md` |
+| AI 自学习设计 | AI 记忆、实例库、学习与重分类的系统规格参考 | `docs/AI_SELF_LEARNING_DESIGN_v7.md` |
 | 历史参考归档 | 聊天沉淀、旧设计稿、原型草稿、辅助说明 | `docs/reference/` |
 
 ---
@@ -190,22 +198,25 @@ npx cap run android
 | AI 工作态三色联动 | 日卡片边框流光 + 中央按钮发光 + 骨架屏 |
 | AI 控制条弹出 | 长按弹出开关条（视觉已实现，交互有 bug） |
 | 首页业务规格收口 | 已完成首页原型、需求文档、AI 设计文档之间的口径交叉核对 |
-| 首页集成规格文档 | 已新增 `docs/Moni_Homepage_Integration_Spec.md`，明确首页组件级业务逻辑与表现层 / 逻辑层边界 |
-| 需求文档修订 | 已更新 `docs/Moni_Requirements_v2.md`，修正过时内容并补充当前冻结边界 |
-| 预算系统专项规格 | 已新增 `docs/Moni_Budget_System_Spec.md`，明确月度总预算的显示层、逻辑层与持久化层最小范围 |
+| 首页集成规格文档 | 已新增 `docs/intergration_output/Moni_Homepage_Integration_Spec.md`，明确首页组件级业务逻辑与表现层 / 逻辑层边界 |
+| 需求文档修订 | 已更新 `docs/Moni_Requirements_v3.md`，修正过时内容并补充当前冻结边界 |
+| 预算系统专项规格 | 已新增 `docs/Moni_Budget_System_Spec_v2.md`，明确月度总预算的显示层、逻辑层与持久化层最小范围 |
 | 参考资料归档整理 | 已将历史聊天沉淀与旧设计稿整理进 `docs/reference/` |
 
 ### 进行中 / 待修复 🚧
 
-**当前重点：记账页文档收敛与原型集成**
+**当前重点：设置页文档收敛、设置页集成规格输出、再进入原型细化**
 
 | 任务 ID | 任务名称 | 优先级 | 状态 | 具体描述 |
 |---------|----------|--------|------|----------|
-| DOC-01 | 首页文档闭环 | P0 | 已完成 | `DESIGN.md`、`Moni_Requirements_v2.md`、`AI_SELF_LEARNING_DESIGN_v6.md`、首页原型代码之间的首页业务口径已完成交叉核对 |
+| DOC-01 | 首页文档闭环 | P0 | 已完成 | `DESIGN.md`、`Moni_Requirements_v3.md`、`AI_SELF_LEARNING_DESIGN_v7.md`、首页原型代码之间的首页业务口径已完成交叉核对 |
 | DOC-02 | 首页集成规格输出 | P0 | 已完成 | 已形成首页集成专用执行文档，供主仓库协作者联调使用 |
 | DOC-03 | 预算系统规格输出 | P0 | 已完成 | 已形成预算系统专项文档，冻结月度总预算本轮范围 |
 | DOC-04 | 记账页静态规格收敛 | P0 | 已完成 | 已将过细静态描述降级为参考 JSX / 实现为准，并写入当前按钮视觉口径 |
-| DOC-05 | 记账页集成规格输出 | P0 | 已完成 | 已新增 `docs/Moni_Entry_Page_Integration_Spec.md`，定义记账页读模型、动作与联调边界 |
+| DOC-05 | 记账页集成规格输出 | P0 | 已完成 | 已新增 `docs/intergration_output/Moni_Entry_Page_Integration_Spec.md`，定义记账页读模型、动作与联调边界 |
+| DOC-06 | 设置页规格冲突收敛 | P0 | 已完成 | 已以 `docs/Moni_Settings_Spec_v1.md` 为唯一基准，清理设置页相关文档的过时描述与冲突口径 |
+| DOC-07 | 设置页 UI/UX 规格同步 | P0 | 已完成 | 已按用户新增设置页细化口径更新 `docs/Moni_Settings_UIUX_Spec_v1.md`，同步空态、反馈、按钮与提示文案 |
+| DOC-08 | 设置页集成规格输出 | P0 | 已完成 | 已新增去臆测版 `docs/intergration_output/Moni_Settings_Integration_Spec.md`，仅保留集成约束与测试链路 |
 | GES-01 | 全局 CSS 防御层 | P0 | 待执行 | 在代码阶段按 DESIGN.md 23.1 节补齐 6 条全局规则 |
 | GES-02 | AI 控制条指针追踪修复 | P0 | 待执行 | 见下方详细方案 |
 | GES-03 | AI 控制条 pointerleave 误触修复 | P0 | 待执行 | 见下方详细方案 |
@@ -218,6 +229,17 @@ npx cap run android
 | ENT-02 | 记账页静态视觉校准 | P0 | 进行中 | 静态态“记一笔”按钮采用更收窄版本，长按后收缩为黑色铅笔悬浮 token |
 | ENT-03 | 记账页交互联调 | P0 | 进行中 | 已落地长按、跟手拖拽、分类命中、投放录入、保存反馈原型；待继续验证与接真实逻辑层 |
 | ENT-04 | 记账页静态截图验证 | P0 | 待执行 | 本地启动原型，截图核对静态状态后再继续交互微调 |
+| SET-01 | 设置页原型接入 | P0 | 进行中 | 以 `docs/Moni_Settings_Spec_v1.md` 为最高指导接入设置页 root 与二级页原型 |
+| SET-02 | 设置页按钮下沉改造 | P0 | 进行中 | 将 `保存 / 编辑 / 新建 / 新增 / 历史版本 / 立即学习` 等动作从 header 移到对应表单块底部 |
+| SET-03 | 三页画布统一 | P0 | 进行中 | 统一首页 / 设置 / 记账的手机外框描边、圆角、阴影与背景连续性 |
+| SET-04 | 设置页联看与截图验证 | P0 | 待执行 | 启动本地原型，验证 `#home / #settings / #entry` 三页切换体验与按钮触达位置 |
+| SET-05 | 设置页底部导航激活反馈 | P0 | 已完成 | 设置页底部导航已补强 active 反馈，和记账页形成一致的当前页识别语义 |
+| SET-06 | 自述页 Demo 文案收敛 | P1 | 已完成 | 自述默认文案与提示卡已改为明显 demo 语气，避免误导为真实用户画像 |
+| SET-07 | 标签管理改名与空态修复 | P0 | 已完成 | 已补齐标签重命名；无用户标签时不再显示“其他”，改为空态鼓励文案 |
+| SET-08 | AI 记忆行内编辑细化 | P0 | 已完成 | 已支持点击条目直接编辑、回车新建下一条、序号同步更新、点击完成前不保存 |
+| SET-09 | AI 记忆概况与学习反馈修订 | P0 | 已完成 | 已将“累计修正”改为实例库入口语义；立即学习成功后给出反馈并刷新相关显示 |
+| SET-10 | 学习阈值与全量重分类提示修订 | P0 | 已完成 | 学习阈值最小值已改为 1；全量重分类页风险提示文案已更新 |
+| TEST-01 | 设置页端到端效果测试 SOP | P0 | 已完成 | 已在设置页集成文档中沉淀效果测试链路；本轮代码已完成构建验证，待人工联看回归 |
 | GES-09 | 交互全场景 F12 回归测试 | P0 | 待执行 | 在代码侧改动落地后回归 DESIGN.md 23.5 节全部测试项 |
 
 ---

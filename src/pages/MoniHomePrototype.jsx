@@ -20,15 +20,22 @@ import {
   DisplayBoard,
   DragOverlay,
   HintCard,
-  Logo,
   OverviewCard,
   ReasonDialog,
   StatsBar,
   TagRail,
+  TopHeader,
 } from "../features/moni-home/components.jsx";
 import { triggerImpact } from "../platform/haptics.js";
 
-export default function MoniHome({ onOpenEntry }) {
+export default function MoniHome({
+  onOpenEntry,
+  onOpenSettings,
+  currentLedgerName = "日常开销",
+  ledgers = [],
+  activeLedgerId = "",
+  onChangeActiveLedgerId = () => {},
+}) {
   const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [trendOffset, setTrendOffset] = useState(0);
@@ -570,15 +577,8 @@ export default function MoniHome({ onOpenEntry }) {
       <style>{`@keyframes rb{0%{border-color:${C.coral}}25%{border-color:${C.yellow}}50%{border-color:${C.blue}}75%{border-color:${C.mint}}100%{border-color:${C.coral}}}@keyframes rbs{0%{box-shadow:0 0 0 2.5px ${C.coral},0 0 12px ${C.coral}44}25%{box-shadow:0 0 0 2.5px ${C.yellow},0 0 12px ${C.yellow}44}50%{box-shadow:0 0 0 2.5px ${C.blue},0 0 12px ${C.blue}44}75%{box-shadow:0 0 0 2.5px ${C.mint},0 0 12px ${C.mint}44}100%{box-shadow:0 0 0 2.5px ${C.coral},0 0 12px ${C.coral}44}}@keyframes p{0%,100%{opacity:1}50%{opacity:.35}}@keyframes sk{0%,100%{opacity:.42}50%{opacity:.16}}@keyframes fu{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}.ab{animation:rb 3s linear infinite;border-width:2.5px;border-style:solid}.ag{animation:rbs 3s linear infinite}.sk{animation:sk 1.7s ease-in-out infinite;background:#ddd;border-radius:4px}.fi{animation:fu .28s ease-out}*{box-sizing:border-box}::-webkit-scrollbar{display:none}`}</style>
       <Decor />
 
-      <div style={{ padding: "12px 16px 8px", display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, zIndex: 20, flexShrink: 0, position: "relative" }}>
-        <Logo />
-        <div style={{ fontSize: 12, color: "#666", background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 20, padding: "4px 14px", display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
-          日常开销
-          <svg width="10" height="10" viewBox="0 0 10 10">
-            <path d="M2 4L5 7L8 4" stroke="#888" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-          </svg>
-        </div>
-      </div>
+      {/* 顶栏由共享组件统一，确保首页与记账页的账本胶囊完全一致。 */}
+      <TopHeader mode="ledger" ledgerName={currentLedgerName} ledgers={ledgers} activeLedgerId={activeLedgerId} onSelectLedger={onChangeActiveLedgerId} />
 
       <div ref={scrollRef} data-scroll-container onScroll={handleScroll} style={{ flex: 1, overflowY: "auto", overflowX: "hidden", position: "relative", zIndex: 1 }}>
         <DisplayBoard
@@ -651,6 +651,8 @@ export default function MoniHome({ onOpenEntry }) {
         onEndControl={handleEndControl}
         onCancelControl={handleCancelControl}
         onUpdateControlHit={{ ref: controlRef, move: updateControlHit }}
+        // 设置入口现在真正接到设置页原型，便于联看三页切换体验是否连续。
+        onOpenSettings={onOpenSettings}
         // 首页中的“记账”入口负责切换到记账页原型，便于在同一台设备框中联看两页。
         onOpenEntry={onOpenEntry}
       />

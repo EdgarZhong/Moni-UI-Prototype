@@ -61,6 +61,175 @@ export function Logo() {
   );
 }
 
+/**
+ * 统一账本选择胶囊。
+ * 设计目标：
+ * 1. 首页与记账页共用同一视觉，避免一个过轻一个过重；
+ * 2. 字号比旧首页略大，字重提升但不压迫；
+ * 3. 保留胶囊形态，并使用深色描边强化可点击感。
+ */
+function LedgerSelectorPill({ ledgerName }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "5px 14px",
+        borderRadius: 999,
+        background: C.white,
+        border: `1.8px solid ${C.dark}`,
+        color: C.dark,
+        fontSize: 13,
+        fontWeight: 650,
+        lineHeight: 1,
+        cursor: "pointer",
+        boxShadow: "0 1px 0 rgba(0,0,0,.04)",
+      }}
+    >
+      <span>{ledgerName}</span>
+      <svg width="11" height="11" viewBox="0 0 10 10" aria-hidden="true">
+        <path d="M2 3.8L5 6.8L8 3.8" stroke={C.dark} strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+}
+
+/**
+ * 三页统一顶栏：
+ * 1. 左侧始终是同一品牌 Logo，位置与记账页一致；
+ * 2. 首页/记账页右侧显示账本胶囊；
+ * 3. 设置首页右侧显示“设置”，并通过轻微右内边距左移一点，满足视觉口径。
+ */
+export function TopHeader({
+  mode = "ledger",
+  ledgerName = "日常开销",
+  title = "设置",
+  ledgers = [],
+  activeLedgerId = "",
+  onSelectLedger = null,
+}) {
+  // 顶栏下拉只在账本模式启用，设置模式固定展示“设置”文本。
+  const ledgerDropdownEnabled = mode === "ledger" && Array.isArray(ledgers) && ledgers.length > 0 && typeof onSelectLedger === "function";
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownWrapRef = useRef(null);
+  // 当前展示名称优先取外部传入，其次回退到账本数组里的 active 项，最后给出兜底文本。
+  const activeLedger = useMemo(() => ledgers.find((item) => item.id === activeLedgerId), [ledgers, activeLedgerId]);
+  const currentLedgerName = ledgerName || activeLedger?.name || "未设置账本";
+
+  useEffect(() => {
+    // 当从账本模式切到设置模式时，主动关闭下拉，避免状态残留。
+    if (mode !== "ledger") {
+      setDropdownOpen(false);
+    }
+  }, [mode]);
+
+  useEffect(() => {
+    if (!dropdownOpen) {
+      return undefined;
+    }
+    const handlePointerDown = (event) => {
+      const root = dropdownWrapRef.current;
+      if (!root) {
+        return;
+      }
+      if (!root.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [dropdownOpen]);
+
+  return (
+    <div
+      style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 10,
+        background: C.bg,
+        padding: "14px 16px 8px",
+        borderBottom: `1px solid ${C.border}22`,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Logo />
+        <div
+          ref={dropdownWrapRef}
+          style={{
+            minWidth: 120,
+            display: "flex",
+            justifyContent: "flex-end",
+            paddingRight: mode === "settings" ? 6 : 0,
+            position: "relative",
+          }}
+        >
+          {mode === "settings" ? (
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.dark }}>{title}</div>
+          ) : (
+            <div
+              onClick={() => {
+                if (!ledgerDropdownEnabled) {
+                  return;
+                }
+                setDropdownOpen((value) => !value);
+              }}
+              style={{ cursor: ledgerDropdownEnabled ? "pointer" : "default" }}
+            >
+              <LedgerSelectorPill ledgerName={currentLedgerName} />
+            </div>
+          )}
+          {ledgerDropdownEnabled && dropdownOpen ? (
+            <div
+              style={{
+                position: "absolute",
+                top: 36,
+                right: 0,
+                minWidth: 146,
+                maxWidth: 220,
+                background: C.white,
+                border: `2px solid ${C.dark}`,
+                borderRadius: 14,
+                boxShadow: "0 8px 20px rgba(0,0,0,.14)",
+                overflow: "hidden",
+                zIndex: 40,
+              }}
+            >
+              {ledgers.map((ledger, index) => {
+                const selected = ledger.id === activeLedgerId;
+                return (
+                  <div
+                    key={ledger.id}
+                    onClick={() => {
+                      onSelectLedger(ledger.id);
+                      setDropdownOpen(false);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      padding: "10px 12px",
+                      cursor: "pointer",
+                      borderBottom: index < ledgers.length - 1 ? `1px solid ${C.line}` : "none",
+                      background: selected ? C.blueBg : C.white,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: selected ? 700 : 600, color: C.dark, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ledger.name}</div>
+                    <div style={{ fontSize: 12, color: selected ? C.dark : "transparent", fontWeight: 700 }}>✓</div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function NavIcon() {
   return (
     <svg width="34" height="34" viewBox="0 0 52 52">
@@ -72,11 +241,15 @@ export function NavIcon() {
   );
 }
 
-export function GearIcon() {
+export function GearIcon({ active = false }) {
+  // 设置图标需要表达当前页与非当前页两种状态。
+  // 这里补齐 active 入参，避免设置页只能靠文字粗细表达激活反馈。
+  const stroke = active ? C.dark : "#8E8E8E";
+  const strokeWidth = active ? 1.9 : 1.6;
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="3.2" stroke="#8E8E8E" strokeWidth="1.6" />
-      <path d="M12 2.5v2.2M12 19.3v2.2M4.92 4.92l1.56 1.56M17.52 17.52l1.56 1.56M2.5 12h2.2M19.3 12h2.2M4.92 19.08l1.56-1.56M17.52 6.48l1.56-1.56" stroke="#8E8E8E" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="3.2" stroke={stroke} strokeWidth={strokeWidth} />
+      <path d="M12 2.5v2.2M12 19.3v2.2M4.92 4.92l1.56 1.56M17.52 17.52l1.56 1.56M2.5 12h2.2M19.3 12h2.2M4.92 19.08l1.56-1.56M17.52 6.48l1.56-1.56" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
     </svg>
   );
 }
@@ -374,10 +547,10 @@ export function DayCard({ day, isExpanded, isAi, aiStop, onToggle, onItemPointer
   );
 }
 
-export function BottomNav({ aiOn, aiStop, controlOpen, controlHit, onStartControl, onEndControl, onCancelControl, onUpdateControlHit, onOpenEntry }) {
+export function BottomNav({ aiOn, aiStop, controlOpen, controlHit, onStartControl, onEndControl, onCancelControl, onUpdateControlHit, onOpenEntry, onOpenSettings }) {
   return (
     <div style={{ background: C.white, borderTop: `1.5px solid ${C.border}`, paddingTop: 3, paddingRight: 0, paddingLeft: 0, paddingBottom: "max(env(safe-area-inset-bottom), 8px)", display: "flex", justifyContent: "space-around", alignItems: "flex-end", flexShrink: 0, zIndex: 20 }}>
-      <div style={{ textAlign: "center", padding: "4px 16px", cursor: "pointer" }}>
+      <div onClick={onOpenSettings} style={{ textAlign: "center", padding: "4px 16px", cursor: onOpenSettings ? "pointer" : "default" }}>
         <GearIcon />
         <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>设置</div>
       </div>
