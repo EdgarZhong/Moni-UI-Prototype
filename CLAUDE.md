@@ -15,7 +15,8 @@
 - 已将主仓库当前首页、记账页、设置页表现层复制同步到本仓库
 - 已将原型仓库升级为 React 19 + TypeScript + Vite 7 + Tailwind 3
 - 已新增原型本地 `appFacade` mock、Capacitor mock、AI 批处理器桩和随手记输入类型桩
-- 已保留历史 JSX 原型文件作为参考，不作为当前入口
+- 已将历史 JSX 手机边框版源码移动到 `.archive/legacy-js-prototype-2026-04-26/`，当前 `src/` 只保留同构运行源码
+- 已从主仓库 `window.__MONI_DEBUG__.home.getReadModel()` 导出首页 fixture，默认首页视觉状态与主仓库当前状态对齐
 - 当前入口为 `src/main.tsx` -> `src/App.tsx`
 
 ## 独立运行约束
@@ -35,13 +36,15 @@
 | 原型仓库 TypeScript 化 | Done | 已补 `tsconfig`、`vite.config.ts`、React 19 依赖与严格类型检查 |
 | mock 层隔离 | Done | `src/bootstrap/appFacade.ts` 提供与主仓库 facade 对齐的 mock 签名 |
 | 状态驱动导航 | Done | `src/App.tsx` 只维护 `home / entry / settings` 状态切换，不启用 scope router |
+| 表现层状态对齐 | Done | 首页 fixture、设置页可见状态、真实支付宝 zip 密码页均已对齐主仓库当前表现 |
 | 审查交付文档 | Done | `README.md` 与 `AGENTS.md` 已写入启动方式、状态路径和范围边界 |
 
 ## 验证状态
 
 - `npm run typecheck`：已通过
 - `npm run build`：已通过
-- Playwright 隔离 Chromium：已用 `390 x 844` 视口打开首页，console error 为 0，截图 `/tmp/moni-ui-prototype-smoke.png`
+- Playwright 隔离 Chromium：已用 `390 x 844` 视口对比主仓库与原型仓库首页、设置页、记账页、支付宝真实 zip 密码页，console error 为 0
+- 对比截图：`/tmp/main-aligned-home.png`、`/tmp/prototype-aligned-home.png`、`/tmp/main-aligned-settings.png`、`/tmp/prototype-aligned-settings.png`、`/tmp/main-aligned-password.png`、`/tmp/prototype-aligned-password.png`
 
 ## 后续使用方式
 
