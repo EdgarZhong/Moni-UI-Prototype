@@ -1,258 +1,51 @@
 # CLAUDE.md — Moni-UI-Prototype
 
-## 项目基本信息
+本文件记录原型仓库当前阶段的任务状态、执行边界和动态口径。
 
-### 项目概述
+## 当前定位
 
-**Moni-UI-Prototype** 是 AI 原生个人财务助手 Moni 的 UI/UX 可交互原型仓库。
+- 本仓库是 Moni UI 表现层的独立原型仓库
+- 工作流遵循主仓库根文档 `PROTOTYPE_DRIVEN_WORKFLOW_v3.md`
+- 原型仓库是 UI 表现层 source of truth，主仓库是下游消费者
+- 主仓库与原型仓库各自独立运行、独立构建，禁止运行时互相引用
+- 当前项目暂不启用 v3 第五章 Design Scope 导航脚手架，仍使用与主仓库一致的状态驱动导航
 
-本仓库不含正式后端实现，只包含前端可视原型与配套规格文档。原型使用与正式产品完全一致的技术栈，确保设计确认后可直接迁移集成到主仓库（PixelBill / Moni 主工程）。
+## 当前基线
 
-> **当前阶段：首页、记账页、设置页原型与核心文档已完成收敛，进入主仓库集成前的最终冻结交付检查阶段**
-> - 目标：以 `docs/Moni_Settings_Spec_v1.md` 与当前设置页原型代码为基准，冻结 `DESIGN.md` 与设置页集成文档，作为主仓库最终集成输入
-> - 设计权威文档：`DESIGN.md`（UI/UX 唯一执行标准）
-> - 首页集成文档：`docs/intergration_output/Moni_Homepage_Integration_Spec.md`
-> - 记账页集成文档：`docs/intergration_output/Moni_Entry_Page_Integration_Spec.md`
-> - 预算系统文档：`docs/Moni_Budget_System_Spec_v2.md`
-> - 记账页规格文档：`docs/Moni_Entry_Page_Spec_v1.md`
-> - 设置系统规格：`docs/Moni_Settings_Spec_v1.md`
-> - 设置页 UI/UX 规格：`docs/Moni_Settings_UIUX_Spec_v1.md`
-> - 功能需求参考：`docs/Moni_Requirements_v3.md`
->
-> **当前仓库角色**
-> - 当前目录已作为主开发仓库下的原型参考子仓库使用
-> - 此仓库的目标是保持文档与原型状态稳定、可追溯、可供主仓库引用
-> - 若后续继续进行原型开发，建议复制到新的工作目录中进行，避免污染参考源
+- 已将主仓库当前首页、记账页、设置页表现层复制同步到本仓库
+- 已将原型仓库升级为 React 19 + TypeScript + Vite 7 + Tailwind 3
+- 已新增原型本地 `appFacade` mock、Capacitor mock、AI 批处理器桩和随手记输入类型桩
+- 已保留历史 JSX 原型文件作为参考，不作为当前入口
+- 当前入口为 `src/main.tsx` -> `src/App.tsx`
 
-### 架构设计
+## 独立运行约束
 
-本仓库是一个标准 React 单页应用，用于原型展示和交互验证。
+- 禁止从主仓库 runtime 引用本仓库代码
+- 禁止本仓库从主仓库 runtime 引用代码
+- 禁止使用 `npm link`、workspace、跨仓库 alias、跨仓库相对路径或 submodule 指针建立代码耦合
+- 允许从主仓库复制当前表现层代码到本仓库，复制后代码归本仓库所有
+- 允许从本仓库复制已确认原型代码到主仓库，复制后代码归主仓库所有
+- mock / fixtures 必须留在原型仓库，迁移到主仓库时只能替换为真实 service import
 
-**技术栈**：React + javaScript + Vite + Tailwind CSS + Framer Motion
+## 当前任务看板
 
-**核心文件结构**（组件拆分自 Claude 产出的单文件 JSX 原型）：
+| 任务 | 状态 | 说明 |
+|------|------|------|
+| 同步主仓库当前表现层 | Done | 首页、记账页、设置页与 `moni-home` feature 已复制到 `src/ui` |
+| 原型仓库 TypeScript 化 | Done | 已补 `tsconfig`、`vite.config.ts`、React 19 依赖与严格类型检查 |
+| mock 层隔离 | Done | `src/bootstrap/appFacade.ts` 提供与主仓库 facade 对齐的 mock 签名 |
+| 状态驱动导航 | Done | `src/App.tsx` 只维护 `home / entry / settings` 状态切换，不启用 scope router |
+| 审查交付文档 | Done | `README.md` 与 `AGENTS.md` 已写入启动方式、状态路径和范围边界 |
 
-- `config` — 主题色、分类数据、mock 数据、常量
-- `helpers` — 工具函数（日期、分类、统计、随机装饰）
-- `components` — UI 组件（Logo、NavIcon、TagRail、DayCard、BottomNav、DragOverlay 等）
-- `MoniHome` — 首页主容器（状态管理、手势处理、布局编排）
+## 验证状态
 
-### 协作模式
+- `npm run typecheck`：已通过
+- `npm run build`：已通过
+- Playwright 隔离 Chromium：已用 `390 x 844` 视口打开首页，console error 为 0，截图 `/tmp/moni-ui-prototype-smoke.png`
 
-本仓库的设计方案由两方协作产出：
+## 后续使用方式
 
-- **Claude（网页端）**：负责 0→1，产出 JSX 可视原型 + DESIGN.md 规格文档
-- **编码 Agent（本地）**：负责 1→10，按 DESIGN.md 规格落地工程实现
-
-**同步方式**：Claude 产出 JSX 作为视觉参考 + DESIGN.md 作为执行规格，编码 Agent 照规格实现。两方不直接共享工程目录，通过文件级粘贴同步。
-
-**执行原则**：
-- DESIGN.md 是唯一设计权威，代码必须符合 DESIGN.md
-- 若 DESIGN.md 与代码冲突，以 DESIGN.md 为准
-- 若 DESIGN.md 本身需要修改，必须先更新 DESIGN.md，再改代码
-- 编码 Agent 不得自行发明交互行为，所有交互必须在 DESIGN.md 中有依据
-
----
-
-## 项目目录结构
-
-```
-moni-ui-prototype/
-├── docs/                          # 项目文档
-│   ├── DESIGN.md                  # UI/UX 唯一设计标准（核心）
-│   ├── Moni_Brand_Design_Spec.md  # 品牌视觉与 SVG 资产
-│   ├── Moni_Requirements_v3.md    # 功能需求参考
-│   ├── Moni_Settings_Spec_v1.md   # 设置系统统一规格
-│   ├── Moni_Settings_UIUX_Spec_v1.md # 设置页 UI/UX 规格
-│   ├── Moni_Budget_System_Spec_v2.md  # 预算系统专项规格
-│   ├── AI_SELF_LEARNING_DESIGN_v7.md  # AI 自学习功能设计
-│   ├── intergration_output/       # 页面级集成规格输出
-│   └── reference/                 # 历史设计稿、聊天沉淀与归档参考
-├── src/
-│   ├── features/
-│   │   └── moni-home/
-│   │       ├── config.js          # 主题色、分类数据、mock 交易数据
-│   │       ├── helpers.js         # 工具函数
-│   │       └── components.jsx     # UI 组件集合
-│   ├── pages/
-│   │   └── MoniHomePrototype.jsx  # 首页主容器
-│   ├── App.tsx                    # 应用入口
-│   └── index.css                  # 全局样式（含手势防御 CSS）
-├── index.html
-├── package.json
-├── vite.config.ts
-├── tailwind.config.js
-├── CLAUDE.md                      # 本文件
-└── DESIGN.md                      # → 软链接或复制自 docs/DESIGN.md
-```
-
-> 注：实际目录结构以仓库 `ls` 结果为准，以上为规划结构。如有出入请先执行 `find . -type f` 确认再操作。
-
----
-
-## 重要文档索引表
-
-| 文档名称 | 内容描述 | 文件路径 |
-|----------|----------|----------|
-| UI/UX 设计标准 | 唯一执行标准，含首页全部交互规则、手势实现规范 | `DESIGN.md` |
-| 品牌视觉规范 | 品牌色、字体、SVG 资产、Memphis 装饰规则 | `Moni_Brand_Design_Spec.md` |
-| 功能需求文档 | 产品功能需求（设计实现以 DESIGN.md 为准） | `docs/Moni_Requirements_v3.md` |
-| 记账页交互规格 | 记账页信息架构、交互流程、静态视觉约束边界 | `docs/Moni_Entry_Page_Spec_v1.md` |
-| 记账页集成规格 | 记账页表现层 / 逻辑层交互口径、读模型与动作边界 | `docs/intergration_output/Moni_Entry_Page_Integration_Spec.md` |
-| 设置系统规格 | 设置页信息架构、作用域、完整设置清单与裁决顺序 | `docs/Moni_Settings_Spec_v1.md` |
-| 设置页 UI/UX 规格 | 设置页视觉数值、二级页交互规则、弹窗与动作位置标准 | `docs/Moni_Settings_UIUX_Spec_v1.md` |
-| 设置页集成规格 | 设置页表现层 / 逻辑层接线约束、保存边界、刷新策略、验收口径 | `docs/intergration_output/Moni_Settings_Integration_Spec.md` |
-| 首页集成规格 | 首页组件业务逻辑、表现层 / 逻辑层动作、联调边界 | `docs/intergration_output/Moni_Homepage_Integration_Spec.md` |
-| 预算系统规格 | 月度总预算的显示层、逻辑层、持久化层与本轮范围 | `docs/Moni_Budget_System_Spec_v2.md` |
-| AI 自学习设计 | AI 记忆、实例库、学习与重分类的系统规格参考 | `docs/AI_SELF_LEARNING_DESIGN_v7.md` |
-| 历史参考归档 | 聊天沉淀、旧设计稿、原型草稿、辅助说明 | `docs/reference/` |
-
----
-
-## 项目代码规范
-
-### 技术栈约束
-
-- React 18 + TypeScript（JSX/TSX 均可，逐步向 TSX 迁移）
-- Vite 构建
-- Tailwind CSS（可与 inline style 混用，逐步迁移）
-- Framer Motion（手势交互必须使用，见 DESIGN.md 第 23 节）
-- 目标运行平台：Capacitor Android WebView
-
-### 代码风格
-
-- **所有代码必须包含详细中文注释**
-- 复杂逻辑需要解释"为什么"而非"做什么"
-- 组件 Props 需要 JSDoc 说明
-- 使用 ES Module（`import/export`），不使用 CommonJS
-- 使用函数组件 + Hooks，不使用 Class 组件
-
-### 手势代码规范（核心）
-
-详见 DESIGN.md 第 23 节。以下为摘要：
-
-1. **全局 CSS 防御层**必须在 `index.css` 中设置（`touch-action: manipulation`、`-webkit-touch-callout: none`、`overscroll-behavior: none` 等 6 条规则）
-2. **禁止**在动态弹出的子元素上依赖 `onPointerMove`（指针已被父元素隐式捕获）
-3. **禁止**使用 `onPointerLeave` 作为取消手势的手段
-4. 需要跨元素追踪指针时，使用 `window.addEventListener` 全局监听或在已捕获元素上用 `clientY` + `elementFromPoint` 判定
-5. 拖拽/长按激活期间必须锁定 body 滚动
-
-### Git 规范
-
-- 使用语义化提交信息：`feat:`, `fix:`, `refactor:`, `docs:`, `style:`
-- 除非用户要求，否则不要自行 `git add` 和 `git commit`
-- **绝对禁止自行 `git push`**
-- 永远不要删除文件，需要删除的一律移动到 `.archive/`
-
----
-
-## 开发测试闭环 SOP
-
-### 启动开发环境
-
-```bash
-npm run dev
-# 浏览器访问 http://localhost:5173
-# 打开 F12 → 切换到移动设备模式（如 iPhone 12 Pro 或自定义 390×860）
-```
-
-### 交互测试流程
-
-在 F12 移动设备模式下逐一测试以下场景（对应 DESIGN.md 23.5 节）：
-
-1. 看板卡片上下滑动
-2. 折线图卡内左右滑动
-3. 标签轨道横向滚动
-4. 长按条目 → 拖拽分类
-5. 拖拽投放 / 拖拽取消
-6. **长按中央按钮 → 不松手 → 滑到控制条 → 松手触发**
-7. 页面连续滚动 + 标签轨道吸附
-
-### Android 真机验证（里程碑节点执行）
-
-```bash
-npm run build
-npx cap sync
-npx cap run android
-```
-
-验证项见 DESIGN.md 23.5 节"Android 额外验证"。
-
----
-
-## 项目当前进展和任务列表
-
-### 已完成 ✅
-
-| 任务 | 说明 |
-|------|------|
-| 首页信息架构 | Header / 看板 / 统计 / 概览 / 标签轨道 / 日卡片列表 / 底部导航 |
-| 品牌视觉系统 | Moni 字标 / 猫耳 M 按钮 / 三色装饰 / Memphis 印花 |
-| 分类数据系统 | 11 类分类 + 色彩 + emoji 图标组 |
-| 看板轮播 | 预算卡 ↔ 折线图卡上下切换（基础可用） |
-| 折线图时间窗口 | 左右滑动切换 7 天窗口（基础可用） |
-| 统计摘要 + 分类概览 | 联动 Data Range Picker |
-| 标签轨道筛选 | 横向滚动 + 点击筛选 + sticky 吸附 |
-| 三阶段日卡片折叠/展开 | 初始→过渡→完全 三阶段滚动逻辑 |
-| 长按拖拽分类 | 拖拽阶段全局监听实现（基本可用） |
-| AI 工作态三色联动 | 日卡片边框流光 + 中央按钮发光 + 骨架屏 |
-| AI 控制条弹出 | 长按弹出开关条（视觉已实现，交互有 bug） |
-| 首页业务规格收口 | 已完成首页原型、需求文档、AI 设计文档之间的口径交叉核对 |
-| 首页集成规格文档 | 已新增 `docs/intergration_output/Moni_Homepage_Integration_Spec.md`，明确首页组件级业务逻辑与表现层 / 逻辑层边界 |
-| 需求文档修订 | 已更新 `docs/Moni_Requirements_v3.md`，修正过时内容并补充当前冻结边界 |
-| 预算系统专项规格 | 已新增 `docs/Moni_Budget_System_Spec_v2.md`，明确月度总预算的显示层、逻辑层与持久化层最小范围 |
-| 参考资料归档整理 | 已将历史聊天沉淀与旧设计稿整理进 `docs/reference/` |
-
-### 进行中 / 待修复 🚧
-
-**当前重点：设置页文档收敛、设置页集成规格输出、再进入原型细化**
-
-| 任务 ID | 任务名称 | 优先级 | 状态 | 具体描述 |
-|---------|----------|--------|------|----------|
-| DOC-01 | 首页文档闭环 | P0 | 已完成 | `DESIGN.md`、`Moni_Requirements_v3.md`、`AI_SELF_LEARNING_DESIGN_v7.md`、首页原型代码之间的首页业务口径已完成交叉核对 |
-| DOC-02 | 首页集成规格输出 | P0 | 已完成 | 已形成首页集成专用执行文档，供主仓库协作者联调使用 |
-| DOC-03 | 预算系统规格输出 | P0 | 已完成 | 已形成预算系统专项文档，冻结月度总预算本轮范围 |
-| DOC-04 | 记账页静态规格收敛 | P0 | 已完成 | 已将过细静态描述降级为参考 JSX / 实现为准，并写入当前按钮视觉口径 |
-| DOC-05 | 记账页集成规格输出 | P0 | 已完成 | 已新增 `docs/intergration_output/Moni_Entry_Page_Integration_Spec.md`，定义记账页读模型、动作与联调边界 |
-| DOC-06 | 设置页规格冲突收敛 | P0 | 已完成 | 已以 `docs/Moni_Settings_Spec_v1.md` 为唯一基准，清理设置页相关文档的过时描述与冲突口径 |
-| DOC-07 | 设置页 UI/UX 规格同步 | P0 | 已完成 | 已按用户新增设置页细化口径更新 `docs/Moni_Settings_UIUX_Spec_v1.md`，同步空态、反馈、按钮与提示文案 |
-| DOC-08 | 设置页集成规格输出 | P0 | 已完成 | 已新增去臆测版 `docs/intergration_output/Moni_Settings_Integration_Spec.md`，仅保留集成约束与测试链路 |
-| DOC-09 | 设置页最终交付文档冻结检查 | P0 | 已完成 | 已按 `docs/Moni_Settings_Spec_v1.md` + 设置页原型代码复核 `DESIGN.md` 与 `docs/intergration_output/Moni_Settings_Integration_Spec.md`，清理旧口径并冻结交付 |
-| GES-01 | 全局 CSS 防御层 | P0 | 待执行 | 在代码阶段按 DESIGN.md 23.1 节补齐 6 条全局规则 |
-| GES-02 | AI 控制条指针追踪修复 | P0 | 待执行 | 见下方详细方案 |
-| GES-03 | AI 控制条 pointerleave 误触修复 | P0 | 待执行 | 见下方详细方案 |
-| GES-04 | 条目长按 pointerleave 误取消修复 | P0 | 待执行 | 见下方详细方案 |
-| INT-01 | 首页聚合读模型接入 | P0 | 待执行 | 让看板、统计、概览、流水、AI 状态统一消费逻辑层读模型 |
-| INT-02 | AI 引擎状态接入 | P0 | 待执行 | 接入 AI 工作态、软停止状态、范围外 backlog 感知 |
-| INT-03 | 月度总预算接入 | P0 | 待执行 | 按预算系统专项文档接入首页预算卡所需字段与无预算态分支 |
-| INT-04 | 手动记录条目显示接入 | P1 | 待执行 | 在首页流水中支持“AI reasoning 留空 + 来源显示手动记录” |
-| ENT-01 | 记账页原型接入 | P0 | 进行中 | 以 `refer/MoniEntryPage (1).jsx` 为静态基准、以 `refer/MoniEntryPrototype.jsx` 为交互参考接入实际原型 |
-| ENT-02 | 记账页静态视觉校准 | P0 | 进行中 | 静态态“记一笔”按钮采用更收窄版本，长按后收缩为黑色铅笔悬浮 token |
-| ENT-03 | 记账页交互联调 | P0 | 进行中 | 已落地长按、跟手拖拽、分类命中、投放录入、保存反馈原型；待继续验证与接真实逻辑层 |
-| ENT-04 | 记账页静态截图验证 | P0 | 待执行 | 本地启动原型，截图核对静态状态后再继续交互微调 |
-| SET-01 | 设置页原型接入 | P0 | 进行中 | 以 `docs/Moni_Settings_Spec_v1.md` 为最高指导接入设置页 root 与二级页原型 |
-| SET-02 | 设置页按钮下沉改造 | P0 | 进行中 | 将 `保存 / 编辑 / 新建 / 新增 / 历史版本 / 立即学习` 等动作从 header 移到对应表单块底部 |
-| SET-03 | 三页画布统一 | P0 | 进行中 | 统一首页 / 设置 / 记账的手机外框描边、圆角、阴影与背景连续性 |
-| SET-04 | 设置页联看与截图验证 | P0 | 待执行 | 启动本地原型，验证 `#home / #settings / #entry` 三页切换体验与按钮触达位置 |
-| SET-05 | 设置页底部导航激活反馈 | P0 | 已完成 | 设置页底部导航已补强 active 反馈，和记账页形成一致的当前页识别语义 |
-| SET-06 | 自述页 Demo 文案收敛 | P1 | 已完成 | 自述默认文案与提示卡已改为明显 demo 语气，避免误导为真实用户画像 |
-| SET-07 | 标签管理改名与空态修复 | P0 | 已完成 | 已补齐标签重命名；无用户标签时不再显示“其他”，改为空态鼓励文案 |
-| SET-08 | AI 记忆行内编辑细化 | P0 | 已完成 | 已支持点击条目直接编辑、回车新建下一条、序号同步更新、点击完成前不保存 |
-| SET-09 | AI 记忆概况与学习反馈修订 | P0 | 已完成 | 已将“累计修正”改为实例库入口语义；立即学习成功后给出反馈并刷新相关显示 |
-| SET-10 | 学习阈值与全量重分类提示修订 | P0 | 已完成 | 学习阈值最小值已改为 1；全量重分类页风险提示文案已更新 |
-| TEST-01 | 设置页端到端效果测试 SOP | P0 | 已完成 | 已在设置页集成文档中沉淀效果测试链路；本轮代码已完成构建验证，待人工联看回归 |
-| GES-09 | 交互全场景 F12 回归测试 | P0 | 待执行 | 在代码侧改动落地后回归 DESIGN.md 23.5 节全部测试项 |
-
----
-
-## 用户规则
-
-- **永远用中文回答用户问题，中文撰写项目 CLAUDE.md 文件**
-- **所有代码必须包含详细中文注释**
-- 当用户要求查看项目，总览项目，扫描项目目录时：**必须递归的查看项目目录结构**
-- 用户要求读取/查看任何图片/文档时，**必须真正阅读图片/文档内容**
-- **行动偏好更改**：如果用户的指令略显模糊，**不要**基于经验做出假设并直接执行，**必须先询问用户具体需求**，先给出建议，**用户确认后再执行**
-- **绝对禁止先干活，后汇报**：在执行代码修改和命令运行前，必须先**描述清楚意图**，然后再执行
-- **交互设计红线**：涉及前端交互逻辑变更，必须先汇报计划的设计细则并获得用户明确"确认"指令授权后方可实施代码；严禁未授权修改，且仅明确肯定回复视为确认
-- DESIGN.md 是唯一理念/视觉/功能设计指导
-- 文件操作：永远不要删除文件，需要删除的一律移动到 `.archive/`
+1. 新 UI/UX 表现层变更先在本仓库探索
+2. 使用 mock / fixtures 覆盖正常、异常、空态、边界状态
+3. 用户确认原型后，再由主仓库复制迁移
+4. 主仓库实现若发现原型不可落地，必须回到本仓库修正并重新确认
