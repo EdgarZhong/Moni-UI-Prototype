@@ -21,10 +21,11 @@ import {
   BottomNav,
   DateRangeDialog,
   DayCard,
-  Decor,
-  DisplayBoard,
-  DragOverlay,
-  HintCard,
+    Decor,
+    DisplayBoard,
+    DRAG_PANEL_EXPAND_TRIGGER_MARGIN_PX,
+    DragOverlay,
+    HintCard,
   LedgerHeaderControl,
   Logo,
   OverviewCard,
@@ -86,6 +87,26 @@ interface DetailContext {
   dayLabel: string;
 }
 
+/**
+ * 详情页自由输入统一按空串收口。
+ * remark 在旧数据里可能为 "/"，这里直接视为“无内容”。
+ */
+function normalizeEditableText(value?: string | null): string {
+  if (!value || value === "/") return "";
+  return value;
+}
+
+/**
+ * 详情页金额展示固定收口到两位小数。
+ * 与拖拽细则面板的“金额确认”语义保持一致，避免出现整数与小数混杂。
+ */
+function formatDetailAmount(value: number): string {
+  return new Intl.NumberFormat("zh-CN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 interface TransactionDetailPanelProps {
   detail: DetailContext;
   availableCategories: string[];
@@ -106,55 +127,75 @@ function TransactionDetailPanel({
   onSetTransactionVerification,
 }: TransactionDetailPanelProps) {
   const EXIT_ANIMATION_MS = 220;
-  const OPEN_GUARD_MS = 260;
-  const [reasoningInput, setReasoningInput] = useState("");
-  const [noteInput, setNoteInput] = useState(detail.item.remark ?? "");
+  const TEXT_DEBOUNCE_MS = 800;
+  const sourceUserNote = detail.item.userNote ?? "";
+  const sourceRemark = normalizeEditableText(detail.item.remark);
+  const [reasoningInput, setReasoningInput] = useState(sourceUserNote);
+  const [noteInput, setNoteInput] = useState(sourceRemark);
   const [selectedCategory, setSelectedCategory] = useState(getCategory(detail.item));
   const [isVerified, setIsVerified] = useState(Boolean(detail.item.isVerified));
   const [isClosing, setIsClosing] = useState(false);
-  const initialCategoryRef = useRef(getCategory(detail.item));
-  const touchStartRef = useRef<{ x: number; y: number; at: number } | null>(null);
-  const openedAtRef = useRef(0);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+  const [showMeta, setShowMeta] = useState(false);
 
   useEffect(() => {
-    setReasoningInput("");
-    setNoteInput(detail.item.remark ?? "");
-    const initialCategory = getCategory(detail.item);
-    initialCategoryRef.current = initialCategory;
-    setSelectedCategory(initialCategory);
+    setReasoningInput(sourceUserNote);
+    setNoteInput(sourceRemark);
+    setSelectedCategory(getCategory(detail.item));
     setIsVerified(Boolean(detail.item.isVerified));
     setIsClosing(false);
-    openedAtRef.current = Date.now();
+    setCategoryPickerOpen(false);
+    setShowMeta(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail.item.id]);
 
-  const requestClose = useCallback((source: "backdrop" | "gesture" | "button" = "backdrop") => {
+  const commitUserReasoning = useCallback((nextValue: string) => {
+    onUpdateUserReasoning(String(detail.item.id), nextValue.trim());
+  }, [detail.item.id, onUpdateUserReasoning]);
+
+  const commitRemark = useCallback((nextValue: string) => {
+    onUpdateRemark(String(detail.item.id), nextValue.trim());
+  }, [detail.item.id, onUpdateRemark]);
+
+  useEffect(() => {
+    if (normalizeEditableText(reasoningInput) === normalizeEditableText(sourceUserNote)) {
+      return undefined;
+    }
+    const timer = window.setTimeout(() => {
+      commitUserReasoning(reasoningInput);
+    }, TEXT_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [TEXT_DEBOUNCE_MS, commitUserReasoning, reasoningInput, sourceUserNote]);
+
+  useEffect(() => {
+    if (normalizeEditableText(noteInput) === normalizeEditableText(sourceRemark)) {
+      return undefined;
+    }
+    const timer = window.setTimeout(() => {
+      commitRemark(noteInput);
+    }, TEXT_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [TEXT_DEBOUNCE_MS, commitRemark, noteInput, sourceRemark]);
+
+  const requestClose = useCallback(() => {
     if (isClosing) return;
-    if (source === "backdrop" && Date.now() - openedAtRef.current < OPEN_GUARD_MS) {
-      return;
-    }
-    if (selectedCategory && selectedCategory !== initialCategoryRef.current) {
-      onUpdateCategory(String(detail.item.id), selectedCategory);
-      initialCategoryRef.current = selectedCategory;
-    }
+    commitUserReasoning(reasoningInput);
+    commitRemark(noteInput);
     setIsClosing(true);
     window.setTimeout(() => {
       onClose();
     }, EXIT_ANIMATION_MS);
-  }, [detail.item.id, isClosing, onClose, onUpdateCategory, selectedCategory]);
+  }, [EXIT_ANIMATION_MS, commitRemark, commitUserReasoning, isClosing, noteInput, onClose, reasoningInput]);
 
   const handleUpdateCategory = useCallback((category: string) => {
     setSelectedCategory(category);
-  }, []);
-
-  const handleSaveReasoning = useCallback(() => {
-    onUpdateUserReasoning(String(detail.item.id), reasoningInput.trim());
-  }, [detail.item.id, onUpdateUserReasoning, reasoningInput]);
-
-  const handleSaveNote = useCallback(() => {
-    onUpdateRemark(String(detail.item.id), noteInput.trim());
-  }, [detail.item.id, noteInput, onUpdateRemark]);
+    onUpdateCategory(String(detail.item.id), category);
+    setCategoryPickerOpen(false);
+    if (!isVerified) {
+      setIsVerified(true);
+      onSetTransactionVerification(String(detail.item.id), true);
+    }
+  }, [detail.item.id, isVerified, onSetTransactionVerification, onUpdateCategory]);
 
   const handleToggleVerified = useCallback(() => {
     const next = !isVerified;
@@ -162,45 +203,34 @@ function TransactionDetailPanel({
     onSetTransactionVerification(String(detail.item.id), next);
   }, [detail.item.id, isVerified, onSetTransactionVerification]);
 
-  const handleTouchStart = useCallback((event: React.TouchEvent) => {
-    const touch = event.touches[0];
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY, at: Date.now() };
-  }, []);
-
-  const handleTouchEnd = useCallback((event: React.TouchEvent) => {
-    if (!touchStartRef.current) return;
-    const endTouch = event.changedTouches[0];
-    const deltaX = endTouch.clientX - touchStartRef.current.x;
-    const deltaY = Math.abs(endTouch.clientY - touchStartRef.current.y);
-    const elapsed = Date.now() - touchStartRef.current.at;
-
-    // 用面板自身坐标判断边缘，而非视口坐标
-    const rect = panelRef.current?.getBoundingClientRect();
-    if (rect) {
-      const startRelX = touchStartRef.current.x - rect.left;
-      const fromLeftEdge = startRelX < 50 && deltaX > 50;
-      const fromRightEdge = startRelX > rect.width - 50 && deltaX < -50;
-      if ((fromLeftEdge || fromRightEdge) && deltaY < 50 && elapsed < 350) {
-        requestClose("gesture");
-      }
-    }
-
-    touchStartRef.current = null;
-  }, [requestClose]);
+  const currentCategory = selectedCategory;
+  const aiCategory = detail.item.aiCat?.trim() || "";
+  const userCategory = detail.item.userCat?.trim() || "";
+  const directionLabel = detail.item.direction === "in" ? "收入" : "支出";
+  const sourceLabel = detail.item.sourceLabel || "来源未知";
+  const sourceTypeLabel = detail.item.sourceType === "manual"
+    ? "随手记"
+    : detail.item.sourceType === "alipay"
+      ? "支付宝"
+      : detail.item.sourceType === "wechat"
+        ? "微信"
+        : "来源未知";
+  const hasDisplayRemark = normalizeEditableText(detail.item.remark).length > 0;
+  const currentCategoryHint = userCategory
+    ? "已由你确认"
+    : aiCategory
+      ? "AI 建议，点击修改"
+      : "点击分类";
 
   return (
-    <div style={{ position: "absolute", inset: 0, zIndex: 70, background: "rgba(0,0,0,.35)" }} onClick={() => requestClose("backdrop")}>
+    <div style={{ position: "absolute", inset: 0, zIndex: 70, background: "rgba(0,0,0,.28)" }}>
       <div
-        ref={panelRef}
-        onClick={(event) => event.stopPropagation()}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
         className={isClosing ? "frx" : "fr"}
         style={{
           position: "absolute",
           top: 0,
           right: 0,
-          width: "100%",
+          width: "calc(100% - 22px)",
           height: "100%",
           background: C.bg,
           borderLeft: `2px solid ${C.dark}`,
@@ -209,108 +239,214 @@ function TransactionDetailPanel({
           overflowY: "auto",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${C.border}`, background: C.white }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: C.dark }}>交易详情</div>
-            <div style={{ fontSize: 11, color: C.sub }}>{detail.dayLabel} · {detail.item.t}</div>
-          </div>
-          <div onClick={() => requestClose("button")} style={{ fontSize: 20, color: C.muted, lineHeight: 1, cursor: "pointer" }}>×</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "16px 16px 12px", borderBottom: `1px solid ${C.border}`, background: C.bg, position: "sticky", top: 0, zIndex: 2 }}>
+          <button
+            type="button"
+            onClick={requestClose}
+            aria-label="返回首页"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 12,
+              border: `1.5px solid ${C.border}`,
+              background: C.white,
+              color: C.dark,
+              fontSize: 18,
+              fontWeight: 900,
+            }}
+          >
+            ‹
+          </button>
+          <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: C.dark }}>交易详情</div>
+          <button
+            type="button"
+            onClick={handleToggleVerified}
+            aria-label={isVerified ? "已锁定分类" : "未锁定分类"}
+            style={{
+              minWidth: 36,
+              height: 36,
+              padding: "0 10px",
+              borderRadius: 12,
+              border: `1.5px solid ${isVerified ? C.mint : C.border}`,
+              background: isVerified ? C.mint : C.white,
+              color: isVerified ? C.white : C.dark,
+              fontSize: 12,
+              fontWeight: 900,
+            }}
+          >
+            {isVerified ? "锁定" : "未锁"}
+          </button>
         </div>
 
         <div style={{ padding: "14px 16px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
-            <div style={{ fontSize: 11, color: C.sub, marginBottom: 4 }}>商户 / 主题</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: C.dark }}>{detail.item.n}</div>
-            <div style={{ marginTop: 6, fontSize: 22, fontWeight: 800, color: detail.item.direction === "in" ? C.mint : C.coral, fontFamily: "'Space Mono',monospace" }}>
-              {detail.item.direction === "in" ? "+" : "-"}¥{detail.item.a}
+          <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: "14px 14px 12px" }}>
+            <div style={{ fontSize: 22, lineHeight: 1.2, fontWeight: 900, color: C.dark }}>{detail.item.n}</div>
+            <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, padding: "4px 7px", borderRadius: 999, background: C.orangeBg, color: C.dark, fontWeight: 800 }}>{sourceTypeLabel}</span>
+              <span style={{ fontSize: 10, color: C.sub }}>{detail.dayLabel} · {detail.item.t}</span>
+            </div>
+            <div style={{ marginTop: 10, fontSize: 24, fontWeight: 900, color: detail.item.direction === "in" ? C.mint : C.coral, fontFamily: "'Space Mono',monospace" }}>
+              {directionLabel} ¥{formatDetailAmount(detail.item.a)}
             </div>
           </div>
 
-          <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
-            <div style={{ fontSize: 11, color: C.sub, marginBottom: 8, fontWeight: 700 }}>分类</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {availableCategories.map((category) => {
-                const active = selectedCategory === category;
-                return (
-                  <div
-                    key={category}
-                    onClick={() => handleUpdateCategory(category)}
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: 999,
-                      border: `1.5px solid ${active ? C.dark : C.border}`,
-                      background: active ? C.dark : C.white,
-                      color: active ? C.bg : C.dark,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {category}
+          <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: "12px 14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div style={{ borderRadius: 12, border: `1px solid ${C.line}`, background: "#FCFCFC", padding: "10px 12px" }}>
+              <div style={{ fontSize: 10, color: C.sub, fontWeight: 800, marginBottom: 4 }}>来源</div>
+              <div style={{ fontSize: 12, color: C.dark, fontWeight: 700 }}>{sourceLabel}</div>
+            </div>
+            <div style={{ borderRadius: 12, border: `1px solid ${C.line}`, background: "#FCFCFC", padding: "10px 12px" }}>
+              <div style={{ fontSize: 10, color: C.sub, fontWeight: 800, marginBottom: 4 }}>支付方式</div>
+              <div style={{ fontSize: 12, color: C.dark, fontWeight: 700 }}>{detail.item.pay || "待补充"}</div>
+            </div>
+            {hasDisplayRemark ? (
+              <div style={{ gridColumn: "1 / -1", borderRadius: 12, border: `1px solid ${C.line}`, background: "#FCFCFC", padding: "10px 12px" }}>
+                <div style={{ fontSize: 10, color: C.sub, fontWeight: 800, marginBottom: 4 }}>备注</div>
+                <div style={{ fontSize: 12, color: C.dark, lineHeight: 1.5 }}>{normalizeEditableText(detail.item.remark)}</div>
+              </div>
+            ) : null}
+
+            <div style={{ gridColumn: "1 / -1", paddingTop: 2 }}>
+              <button
+                type="button"
+                onClick={() => setShowMeta((open) => !open)}
+                style={{
+                  padding: 0,
+                  border: "none",
+                  background: "transparent",
+                  color: C.muted,
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                {showMeta ? "收起原始数据" : "查看原始数据"}
+              </button>
+              {showMeta ? (
+                <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                  <div style={{ borderRadius: 12, border: `1px dashed ${C.border}`, background: "#FCFCFC", padding: "9px 11px" }}>
+                    <div style={{ fontSize: 10, color: C.sub, fontWeight: 800, marginBottom: 3 }}>记录 ID</div>
+                    <div style={{ fontSize: 12, color: C.dark, wordBreak: "break-all" }}>{detail.item.id}</div>
                   </div>
-                );
-              })}
+                  <div style={{ borderRadius: 12, border: `1px dashed ${C.border}`, background: "#FCFCFC", padding: "9px 11px" }}>
+                    <div style={{ fontSize: 10, color: C.sub, fontWeight: 800, marginBottom: 3 }}>日期分组</div>
+                    <div style={{ fontSize: 12, color: C.dark }}>{detail.dayId}</div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
-          {detail.item.reason && (
-            <div style={{ background: C.greenBg, border: `1.5px solid ${C.mint}33`, borderRadius: 12, padding: "10px 12px" }}>
-              <div style={{ fontSize: 11, color: C.greenText, fontWeight: 700, marginBottom: 4 }}>AI 判断理由</div>
-              <div style={{ fontSize: 12, color: C.greenText }}>{detail.item.reason}</div>
-            </div>
-          )}
+          <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: "12px 14px" }}>
+            <div style={{ fontSize: 11, color: C.sub, marginBottom: 8, fontWeight: 800 }}>当前分类</div>
+            <button
+              type="button"
+              onClick={() => setCategoryPickerOpen((open) => !open)}
+              style={{
+                width: "100%",
+                border: `1.5px solid ${C.border}`,
+                borderRadius: 14,
+                background: "#FCFCFC",
+                padding: "12px 12px",
+                textAlign: "left",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: C.dark }}>{currentCategory || "未分类"}</div>
+                  <div style={{ marginTop: 4, fontSize: 11, color: C.muted }}>{currentCategoryHint}</div>
+                </div>
+                <div style={{ fontSize: 16, color: C.muted }}>{categoryPickerOpen ? "⌃" : "⌄"}</div>
+              </div>
+            </button>
 
-          <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
-            <div style={{ fontSize: 11, color: C.sub, marginBottom: 6, fontWeight: 700 }}>修正理由（可选）</div>
-            <input
-              type="text"
+            {categoryPickerOpen ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                {availableCategories.map((category) => {
+                  const active = selectedCategory === category;
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => handleUpdateCategory(category)}
+                      style={{
+                        padding: "7px 12px",
+                        borderRadius: 999,
+                        border: `1.5px solid ${active ? C.dark : C.border}`,
+                        background: active ? C.dark : C.white,
+                        color: active ? C.bg : C.dark,
+                        fontSize: 12,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {category}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+
+          <div style={{ background: aiCategory ? C.greenBg : C.white, border: `1.5px solid ${aiCategory ? `${C.mint}33` : C.border}`, borderRadius: 16, padding: "12px 14px" }}>
+            <div style={{ fontSize: 11, color: aiCategory ? C.greenText : C.sub, fontWeight: 800, marginBottom: 6 }}>AI 分析</div>
+            {aiCategory ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {userCategory && aiCategory !== userCategory ? (
+                  <div style={{ fontSize: 11, color: C.dark, fontWeight: 700 }}>你已将分类修改为「{userCategory}」</div>
+                ) : null}
+                <div style={{ fontSize: 12, color: aiCategory ? C.greenText : C.dark, fontWeight: 800 }}>AI 分类：{aiCategory}</div>
+                <div style={{ fontSize: 12, lineHeight: 1.5, color: aiCategory ? C.greenText : C.dark }}>
+                  {detail.item.reason || "当前没有额外推理说明"}
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: C.muted }}>AI 尚未分析这笔交易</div>
+            )}
+          </div>
+
+          <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: "12px 14px" }}>
+            <div style={{ fontSize: 11, color: C.sub, marginBottom: 6, fontWeight: 800 }}>告诉 AI 为什么</div>
+            <textarea
               value={reasoningInput}
               onChange={(event) => setReasoningInput(event.target.value)}
-              placeholder="例如：这是下午茶不是正餐"
-              style={{ width: "100%", borderRadius: 10, border: `1.5px solid ${C.border}`, padding: "10px 12px", fontSize: 12, color: C.dark, outline: "none", fontFamily: "inherit" }}
+              onBlur={() => commitUserReasoning(reasoningInput)}
+              rows={4}
+              placeholder="例如：这是工作餐报销，不是个人消费"
+              style={{ width: "100%", borderRadius: 12, border: `1.5px solid ${C.border}`, padding: "11px 12px", fontSize: 13, color: C.dark, outline: "none", resize: "none", fontFamily: "inherit", background: "#FCFCFC" }}
             />
-            <div
-              onClick={handleSaveReasoning}
-              style={{ marginTop: 8, display: "inline-block", padding: "7px 12px", borderRadius: 8, background: C.dark, color: C.bg, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-            >
-              确定修正理由
-            </div>
           </div>
 
-          <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 12, color: C.dark, fontWeight: 700 }}>锁定该分类</div>
-              <div
+          <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: "12px 14px" }}>
+            <div style={{ fontSize: 11, color: C.sub, marginBottom: 6, fontWeight: 800 }}>备注</div>
+            <textarea
+              value={noteInput}
+              onChange={(event) => setNoteInput(event.target.value)}
+              onBlur={() => commitRemark(noteInput)}
+              rows={4}
+              placeholder="添加备注…"
+              style={{ width: "100%", borderRadius: 12, border: `1.5px solid ${C.border}`, padding: "11px 12px", fontSize: 13, color: C.dark, outline: "none", resize: "none", fontFamily: "inherit", background: "#FCFCFC" }}
+            />
+          </div>
+
+          <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: "12px 14px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+              <div>
+                <div style={{ fontSize: 13, color: C.dark, fontWeight: 800 }}>锁定此分类</div>
+                <div style={{ marginTop: 4, fontSize: 11, lineHeight: 1.45, color: C.muted }}>开启后，AI 不会在自动重分类时覆盖这条记录</div>
+              </div>
+              <button
+                type="button"
                 onClick={handleToggleVerified}
                 style={{
-                  width: 42,
-                  height: 24,
+                  width: 46,
+                  height: 26,
                   borderRadius: 999,
                   border: `1.5px solid ${isVerified ? C.mint : C.border}`,
                   background: isVerified ? C.mint : "#F4F4F4",
                   position: "relative",
-                  cursor: "pointer",
                 }}
               >
-                <div style={{ width: 18, height: 18, borderRadius: "50%", background: C.white, position: "absolute", top: 1, left: isVerified ? 21 : 2, transition: "left .18s ease" }} />
-              </div>
-            </div>
-          </div>
-
-          <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
-            <div style={{ fontSize: 11, color: C.sub, marginBottom: 6, fontWeight: 700 }}>备注</div>
-            <textarea
-              value={noteInput}
-              onChange={(event) => setNoteInput(event.target.value)}
-              rows={3}
-              placeholder="给这笔交易补充说明"
-              style={{ width: "100%", borderRadius: 10, border: `1.5px solid ${C.border}`, padding: "10px 12px", fontSize: 12, color: C.dark, outline: "none", resize: "vertical", fontFamily: "inherit" }}
-            />
-            <div
-              onClick={handleSaveNote}
-              style={{ marginTop: 8, display: "inline-block", padding: "7px 12px", borderRadius: 8, background: C.dark, color: C.bg, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-            >
-              保存备注
+                <div style={{ width: 18, height: 18, borderRadius: "50%", background: C.white, position: "absolute", top: 2, left: isVerified ? 24 : 3, transition: "left .18s ease" }} />
+              </button>
             </div>
           </div>
 
@@ -352,6 +488,7 @@ export default function MoniHome({ onNavigate }: MoniHomeProps) {
   const [dragItem, setDragItem] = useState<HomeTransaction | null>(null);
   const [dragPoint, setDragPoint] = useState<{ x: number; y: number } | null>(null);
   const [hoverCategory, setHoverCategory] = useState<string | null>(null);
+  const [dragPanelState, setDragPanelState] = useState<"collapsed" | "expanded">("collapsed");
   const [reasonItem, setReasonItem] = useState<ReasonItem | null>(null);
   const [detailTxId, setDetailTxId] = useState<string | null>(null);
   const [ledgerDropdownOpen, setLedgerDropdownOpen] = useState(false);
@@ -378,6 +515,8 @@ export default function MoniHome({ onNavigate }: MoniHomeProps) {
   const pressRef = useRef<PressState | null>(null);
   const hoverCategoryRef = useRef<string | null>(null);
   const dragLockRef = useRef<DragLock | null>(null);
+  const dragPanelStateRef = useRef<"collapsed" | "expanded">("collapsed");
+  const collapsedPanelTopYRef = useRef<number | null>(null);
   const pendingDropRef = useRef<{ txId: string; category: string } | null>(null);
   const ledgerDropdownWrapRef = useRef<HTMLDivElement>(null);
 
@@ -711,6 +850,26 @@ export default function MoniHome({ onNavigate }: MoniHomeProps) {
     dragLockRef.current = null;
   }, []);
 
+  /**
+   * 拖拽态退出时统一清理所有与细则面板相关的瞬时状态。
+   * 这样无论是正常投放、取消还是 pointercancel，中间态都不会泄漏到下一次长按。
+   */
+  const resetDragOverlay = useCallback(() => {
+    setDragItem(null);
+    setDragPoint(null);
+    setHoverCategory(null);
+    hoverCategoryRef.current = null;
+    dragPanelStateRef.current = "collapsed";
+    collapsedPanelTopYRef.current = null;
+    setDragPanelState("collapsed");
+  }, []);
+
+  const handleDragPanelMounted = useCallback((topY: number) => {
+    if (collapsedPanelTopYRef.current == null) {
+      collapsedPanelTopYRef.current = topY;
+    }
+  }, []);
+
   const resolveHoverCategory = useCallback((clientX: number, clientY: number) => {
     const target = document.elementFromPoint(clientX, clientY)?.closest("[data-drop-category]");
     const category = target?.getAttribute("data-drop-category") ?? null;
@@ -733,6 +892,9 @@ export default function MoniHome({ onNavigate }: MoniHomeProps) {
       startHold(() => {
         const point = { x: pressRef.current?.startX ?? event.clientX, y: pressRef.current?.startY ?? event.clientY };
         lockDragScroll();
+        dragPanelStateRef.current = "collapsed";
+        collapsedPanelTopYRef.current = null;
+        setDragPanelState("collapsed");
         setDragItem(item);
         setDragPoint(point);
         hoverCategoryRef.current = null;
@@ -789,13 +951,10 @@ export default function MoniHome({ onNavigate }: MoniHomeProps) {
       setReasonItem({ n: dragItem.n, nc: category });
       pendingDropRef.current = { txId: String(dragItem.id), category };
       unlockDragScroll();
-      setDragItem(null);
-      setDragPoint(null);
-      setHoverCategory(null);
-      hoverCategoryRef.current = null;
+      resetDragOverlay();
       void triggerImpact("medium");
     },
-    [dragItem, unlockDragScroll],
+    [dragItem, resetDragOverlay, unlockDragScroll],
   );
 
   useEffect(() => {
@@ -803,6 +962,14 @@ export default function MoniHome({ onNavigate }: MoniHomeProps) {
     const handlePointerMove = (event: PointerEvent) => {
       setDragPoint({ x: event.clientX, y: event.clientY });
       resolveHoverCategory(event.clientX, event.clientY);
+      if (collapsedPanelTopYRef.current != null) {
+        const threshold = collapsedPanelTopYRef.current - DRAG_PANEL_EXPAND_TRIGGER_MARGIN_PX;
+        const nextState: "collapsed" | "expanded" = event.clientY >= threshold ? "expanded" : "collapsed";
+        if (dragPanelStateRef.current !== nextState) {
+          dragPanelStateRef.current = nextState;
+          setDragPanelState(nextState);
+        }
+      }
     };
     /**
      * 只有用户真实抬手（pointerup）时才允许提交分类。
@@ -823,10 +990,7 @@ export default function MoniHome({ onNavigate }: MoniHomeProps) {
         return;
       }
       unlockDragScroll();
-      setDragItem(null);
-      setDragPoint(null);
-      setHoverCategory(null);
-      hoverCategoryRef.current = null;
+      resetDragOverlay();
     };
     /**
      * pointercancel 只表示当前触摸流被中断，不代表用户完成了放手。
@@ -834,10 +998,7 @@ export default function MoniHome({ onNavigate }: MoniHomeProps) {
      */
     const handlePointerCancel = () => {
       unlockDragScroll();
-      setDragItem(null);
-      setDragPoint(null);
-      setHoverCategory(null);
-      hoverCategoryRef.current = null;
+      resetDragOverlay();
     };
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", handlePointerUp);
@@ -847,7 +1008,7 @@ export default function MoniHome({ onNavigate }: MoniHomeProps) {
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerCancel);
     };
-  }, [dragItem, handleDropCategory, resolveHoverCategory, unlockDragScroll]);
+  }, [dragItem, handleDropCategory, resetDragOverlay, resolveHoverCategory, unlockDragScroll]);
 
   useEffect(() => () => {
     stopHold();
@@ -990,6 +1151,7 @@ export default function MoniHome({ onNavigate }: MoniHomeProps) {
         @keyframes fu { from { transform: translateY(10px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
         @keyframes fr { from { transform: translateX(100%); opacity: .9 } to { transform: translateX(0); opacity: 1 } }
         @keyframes frx { from { transform: translateX(0); opacity: 1 } to { transform: translateX(100%); opacity: .92 } }
+        @keyframes dragDetailSlideIn { from { transform: translateY(100%); opacity: .92 } to { transform: translateY(0); opacity: 1 } }
         .ab { animation: rb 3s linear infinite; border-width: 2.5px; border-style: solid }
         .ag { animation: rbs 3s linear infinite }
         .sk { animation: sk 1.7s ease-in-out infinite; background: #ddd; border-radius: 4px }
@@ -1195,10 +1357,12 @@ export default function MoniHome({ onNavigate }: MoniHomeProps) {
         dragItem={dragItem}
         dragPoint={dragPoint}
         hoverCategory={hoverCategory}
+        panelState={dragPanelState}
         onHover={setHoverCategory}
         onLeave={() => { setHoverCategory(null); hoverCategoryRef.current = null; }}
         onDrop={handleDropCategory}
-        onClose={() => { unlockDragScroll(); setDragItem(null); setDragPoint(null); setHoverCategory(null); hoverCategoryRef.current = null; }}
+        onClose={() => { unlockDragScroll(); resetDragOverlay(); }}
+        onPanelMounted={handleDragPanelMounted}
         availableCategories={availableCategories}
       />
 

@@ -77,15 +77,31 @@ const EMPTY_READ_MODEL: MoniHomeReadModel = {
   isLoading: true,
 };
 
-function toHomeTransaction(item: MoniHomeReadModel['dailyTransactionGroups'][number]['items'][number]): HomeTransaction {
+function formatFullTimeLabel(dayId: string, time: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayId);
+  if (!match) return time;
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  return `${month}月${day}日 ${time}`;
+}
+
+function toHomeTransaction(dayId: string, item: MoniHomeReadModel['dailyTransactionGroups'][number]['items'][number]): HomeTransaction {
+  const normalizedTitle = item.title?.trim() || "未知交易";
+  const normalizedCounterparty = item.counterparty?.trim() || "";
+  const normalizedProduct = item.product?.trim() || normalizedTitle;
   return {
     id: item.id,
-    n: item.title,
+    n: normalizedTitle,
     a: item.amount,
     t: item.time,
+    fullTimeLabel: item.fullTime?.trim() || formatFullTimeLabel(dayId, item.time),
     pay: item.paymentMethod,
     sourceType: item.sourceType,
     sourceLabel: item.sourceLabel,
+    rawClass: item.rawClass ?? null,
+    counterparty: normalizedCounterparty || normalizedTitle,
+    product: normalizedProduct,
+    transactionStatus: item.transactionStatus ?? 'SUCCESS',
     userCat: item.userCategory,
     aiCat: item.aiCategory,
     reason: item.reasoning,
@@ -201,7 +217,7 @@ export function useMoniHomeData(): MoniHomeData {
       readModel.dailyTransactionGroups.map((group) => ({
         id: group.id,
         label: group.label,
-        items: group.items.map(toHomeTransaction),
+        items: group.items.map((item) => toHomeTransaction(group.id, item)),
       })),
     [readModel.dailyTransactionGroups]
   );

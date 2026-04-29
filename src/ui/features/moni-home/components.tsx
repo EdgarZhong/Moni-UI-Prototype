@@ -19,6 +19,15 @@ import { getCategory, seededShapes, type OverviewItem } from "./helpers";
 /** 未分类斜线条纹背景（用于图标区和概览横条） */
 const UNCLASSIFIED_STRIPE = `repeating-linear-gradient(45deg,${OVERVIEW_COLORS["未分类"]}22,${OVERVIEW_COLORS["未分类"]}22 3px,${OVERVIEW_COLORS["未分类"]}55 3px,${OVERVIEW_COLORS["未分类"]}55 6px)`;
 
+/**
+ * 拖拽细则面板的统一几何常量。
+ * MoniHome 中的展开判定阈值必须和这里保持一致，否则会再次出现“虚线驻留区”和真实判定区错位。
+ */
+export const DRAG_PANEL_COLLAPSED_VISIBLE_PX = 108;
+export const DRAG_PANEL_EXPAND_TRIGGER_MARGIN_PX = 56;
+export const DRAG_PANEL_RESIDENT_ZONE_HEIGHT_PX = DRAG_PANEL_COLLAPSED_VISIBLE_PX + DRAG_PANEL_EXPAND_TRIGGER_MARGIN_PX;
+export const DRAG_PANEL_EXPANDED_VISIBLE_PX = 476;
+
 // ──────────────────────────────────────────────
 // 类型定义
 // ──────────────────────────────────────────────
@@ -39,12 +48,22 @@ export interface HomeTransaction {
   a: number;
   /** 时间（如 "18:10"） */
   t: string;
+  /** 完整时间（如 "4月12日 20:07"） */
+  fullTimeLabel?: string;
   /** 来源类型 */
   sourceType?: "wechat" | "alipay" | "manual";
   /** 来源文案 */
   sourceLabel?: string;
   /** 支付方式 */
   pay: string;
+  /** 原始分类 */
+  rawClass?: string | null;
+  /** 交易对方 */
+  counterparty?: string | null;
+  /** 商品名称 */
+  product?: string | null;
+  /** 交易状态 */
+  transactionStatus?: string | null;
   /** 用户分类（优先级最高） */
   userCat?: string | null;
   /** AI 分类 */
@@ -842,44 +861,275 @@ interface DragOverlayProps {
   dragItem: HomeTransaction | null;
   dragPoint: { x: number; y: number } | null;
   hoverCategory: string | null;
+  panelState?: "collapsed" | "expanded";
   onHover: (category: string) => void;
   onLeave: () => void;
   onDrop: (category: string) => void;
   onClose: () => void;
+  onPanelMounted?: (topY: number) => void;
   /** 当前账本可用分类列表（来自 LedgerService，替代全局 CAT） */
   availableCategories?: string[];
 }
 
+function normalizeDetailText(value?: string | null): string {
+  if (!value || value === "/") return "";
+  return value.trim();
+}
+
 /** DragOverlay — 拖拽分类蒙版（长按条目触发） */
-export function DragOverlay({ dragItem, dragPoint, hoverCategory, onHover, onLeave, onDrop, onClose, availableCategories }: DragOverlayProps) {
-  if (!dragItem) return null;
+export function DragOverlay({
+  dragItem,
+  dragPoint,
+  hoverCategory,
+  panelState = "collapsed",
+  onHover,
+  onLeave,
+  onDrop,
+  onClose,
+  onPanelMounted,
+  availableCategories,
+}: DragOverlayProps) {
+  /**
+   * 拖拽细则面板的几何约束：
+   * 1. 面板底边固定锚在屏幕外，视觉上始终与底部相连
+   * 2. 展开通过“增高”完成，面板自身不整体上移
+   * 3. 虚线驻留区高度按阈值反推，让可见承接区尽量贴近真实判定区
+   */
+  const PANEL_OFFSCREEN_PX = 56;
+  const PANEL_EXPAND_DELTA_PX = DRAG_PANEL_EXPANDED_VISIBLE_PX - DRAG_PANEL_COLLAPSED_VISIBLE_PX;
+  const panelRef = useRef<HTMLDivElement>(null);
+  const isExpanded = panelState === "expanded";
+  const displayCategory = dragItem?.userCat?.trim() || dragItem?.aiCat?.trim() || "未分类";
+  const detailLine = dragItem?.userCat?.trim()
+    ? (dragItem.userNote?.trim() || "")
+    : dragItem?.aiCat?.trim()
+      ? (dragItem.reason?.trim() || "")
+      : "";
+  const directionLabel = dragItem?.direction === "in" ? "收入" : "支出";
+  const amountLabel = `${directionLabel} ¥${formatCurrencyAmount(dragItem?.a ?? 0)}`;
+  const remarkText = normalizeDetailText(dragItem?.remark);
+  const paymentText = dragItem?.pay?.trim() || "未提供";
+  const lockText = dragItem?.isVerified ? "已锁定" : "未锁定";
+  const sourceTypeText = dragItem?.sourceType === "wechat"
+    ? "微信"
+    : dragItem?.sourceType === "alipay"
+      ? "支付宝"
+      : "手动";
+  const productText = normalizeDetailText(dragItem?.product) || dragItem?.n || "未知交易";
+  const counterpartyText = normalizeDetailText(dragItem?.counterparty);
+  const rawClassText = normalizeDetailText(dragItem?.rawClass);
+  const fullTimeText = normalizeDetailText(dragItem?.fullTimeLabel) || normalizeDetailText(dragItem?.t) || "时间未知";
+  const transactionStatusText = normalizeDetailText(dragItem?.transactionStatus) || "SUCCESS";
+  const directionDetailText = dragItem?.direction === "in" ? "收入" : "支出";
+  const detailSections = [
+    { label: "交易时间", value: fullTimeText },
+    { label: "商品名称", value: productText },
+    counterpartyText && counterpartyText !== productText ? { label: "交易对方", value: counterpartyText } : null,
+    rawClassText ? { label: "原始分类", value: rawClassText } : null,
+    { label: "支付方式", value: paymentText },
+    { label: "记录来源", value: `${dragItem?.sourceLabel?.trim() || "来源未知"} · ${sourceTypeText}` },
+    { label: "收支方向", value: directionDetailText },
+    transactionStatusText !== "SUCCESS" ? { label: "交易状态", value: transactionStatusText } : null,
+    { label: "确认状态", value: lockText },
+    { label: "账单备注", value: remarkText || "暂无备注" },
+  ].filter((section): section is { label: string; value: string } => Boolean(section));
+  const panelVisibleHeight = isExpanded ? DRAG_PANEL_EXPANDED_VISIBLE_PX : DRAG_PANEL_COLLAPSED_VISIBLE_PX;
+  const panelHeight = panelVisibleHeight + PANEL_OFFSCREEN_PX;
+  const overlayShiftY = isExpanded ? -PANEL_EXPAND_DELTA_PX : 0;
+  const previewTranslateY = isExpanded ? "-12%" : "-72%";
+
+  useEffect(() => {
+    if (!dragItem || panelState !== "collapsed" || !onPanelMounted) return undefined;
+
+    /**
+     * 等待收缩态初次进场后再测量顶边。
+     * 后续展开虽然会通过“增高”让顶边继续上移，但判定阈值仍固定锚在收缩态顶边。
+     */
+    const timer = window.setTimeout(() => {
+      const topY = panelRef.current?.getBoundingClientRect().top;
+      if (typeof topY === "number") {
+        onPanelMounted(topY);
+      }
+    }, 220);
+
+    return () => window.clearTimeout(timer);
+  }, [dragItem, onPanelMounted, panelState]);
+
   // 使用当前账本可用分类；若未传入则回退到全局 CAT 键
   const cats = availableCategories ?? Object.keys(CAT);
+  if (!dragItem) return null;
   return (
     <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 50, display: "flex", flexDirection: "column", padding: 16, touchAction: "none" }}>
-      <div style={{ fontSize: 14, color: C.white, fontWeight: 700, textAlign: "center", marginTop: 12, marginBottom: 10 }}>拖放到分类中</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 4px", overflowY: "auto" }}>
-        {cats.map((category) => {
-          const meta = CAT[category];
-          if (!meta) return null;
-          return (
-            <div
-              key={category}
-              data-drop-category={category}
-              onPointerEnter={() => onHover(category)}
-              onPointerLeave={onLeave}
-              onClick={(event) => { event.stopPropagation(); onDrop(category); }}
-              style={{ background: C.white, border: `2.5px solid ${hoverCategory === category ? meta.color : C.border}`, borderRadius: 12, padding: "12px 8px", textAlign: "center", cursor: "pointer", transform: hoverCategory === category ? "scale(1.05)" : "scale(1)", transition: "all .2s" }}
-            >
-              <div style={{ fontSize: 20, marginBottom: 2 }}>{meta.icons[0]}</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: meta.color }}>{category}</div>
+      <div
+        style={{
+          transform: `translateY(${overlayShiftY}px)`,
+          transition: "transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+          flex: 1,
+        }}
+      >
+        <div style={{ fontSize: 14, color: C.white, fontWeight: 700, textAlign: "center", marginTop: 12, marginBottom: 10 }}>拖放到分类中</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 4px", overflowY: "auto" }}>
+          {cats.map((category) => {
+            const meta = CAT[category];
+            if (!meta) return null;
+            return (
+              <div
+                key={category}
+                data-drop-category={category}
+                onPointerEnter={() => onHover(category)}
+                onPointerLeave={onLeave}
+                onClick={(event) => { event.stopPropagation(); onDrop(category); }}
+                style={{ background: C.white, border: `2.5px solid ${hoverCategory === category ? meta.color : C.border}`, borderRadius: 12, padding: "12px 8px", textAlign: "center", cursor: "pointer", transform: hoverCategory === category ? "scale(1.05)" : "scale(1)", transition: "all .2s" }}
+              >
+                <div style={{ fontSize: 20, marginBottom: 2 }}>{meta.icons[0]}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: meta.color }}>{category}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div
+        ref={panelRef}
+        style={{
+          position: "absolute",
+          left: 12,
+          right: 12,
+          bottom: -PANEL_OFFSCREEN_PX,
+          height: panelHeight,
+          transition: "height 260ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+          borderRadius: 24,
+          border: `2px solid ${C.dark}`,
+          background: C.white,
+          boxShadow: "0 14px 36px rgba(0,0,0,.24)",
+          padding: isExpanded ? "16px 16px 16px" : "12px 14px 14px",
+          pointerEvents: "none",
+          overflow: "hidden",
+          animation: "dragDetailSlideIn 220ms ease-out",
+        }}
+      >
+        {!isExpanded ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+              <div style={{ minWidth: 0, fontSize: 15, fontWeight: 800, color: C.dark, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {dragItem.n}
+              </div>
+              <div style={{ flexShrink: 0, fontSize: 13, fontWeight: 800, color: dragItem.direction === "in" ? C.mint : C.coral, fontFamily: "'Space Mono',monospace" }}>
+                {amountLabel}
+              </div>
             </div>
-          );
-        })}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+              <div
+                style={{
+                  flexShrink: 0,
+                  padding: "4px 8px",
+                  borderRadius: 999,
+                  background: displayCategory === "未分类" ? C.orangeBg : C.blueBg,
+                  color: displayCategory === "未分类" ? C.coral : C.dark,
+                  fontSize: 11,
+                  fontWeight: 800,
+                }}
+              >
+                {displayCategory}
+              </div>
+              {detailLine ? (
+                <div style={{ minWidth: 0, fontSize: 11, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {detailLine}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 10 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 22, lineHeight: 1.15, fontWeight: 900, color: C.dark }}>{dragItem.n}</div>
+                  <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 10, padding: "3px 7px", borderRadius: 999, background: C.orangeBg, color: C.dark, fontWeight: 800 }}>{dragItem.sourceLabel ?? "来源未知"}</span>
+                    <span style={{ fontSize: 10, color: C.muted }}>{dragItem.t}</span>
+                    <span style={{ fontSize: 10, color: C.muted }}>{sourceTypeText}</span>
+                  </div>
+                </div>
+                <div style={{ flexShrink: 0, fontSize: 20, fontWeight: 900, color: dragItem.direction === "in" ? C.mint : C.coral, fontFamily: "'Space Mono',monospace" }}>
+                  {amountLabel}
+                </div>
+              </div>
+
+              <div style={{ borderRadius: 16, border: `1.5px solid ${C.border}`, background: "#FCFCFC", padding: "12px 12px" }}>
+                <div style={{ fontSize: 10, color: C.sub, fontWeight: 800, marginBottom: 8 }}>交易细则</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                  {detailSections.map((section) => (
+                    <div
+                      key={section.label}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "84px 1fr",
+                        gap: 10,
+                        alignItems: "start",
+                        padding: "9px 2px",
+                        borderTop: section.label === detailSections[0]?.label ? "none" : `1px dashed ${C.line}`,
+                      }}
+                    >
+                      <div style={{ fontSize: 10, color: C.sub, fontWeight: 800, paddingTop: 2 }}>{section.label}</div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          lineHeight: 1.42,
+                          color: C.dark,
+                          fontWeight: 700,
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {section.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                height: DRAG_PANEL_RESIDENT_ZONE_HEIGHT_PX,
+                borderRadius: 18,
+                border: `2px dashed ${C.dark}`,
+                background: "rgba(255,255,255,.72)",
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "center",
+                padding: "12px 12px 8px",
+              }}
+            >
+              <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <div style={{ fontSize: 11, color: C.sub, fontWeight: 800, letterSpacing: ".04em" }}>手指停留区</div>
+                <div style={{ fontSize: 11, lineHeight: 1.35, color: C.muted, textAlign: "center" }}>
+                  手指停留在这个框内查看细则
+                  <br />
+                  向上移出这个框即收起
+                </div>
+                <div style={{ fontSize: 18, color: C.muted, transform: "translateY(-1px)" }}>⌄</div>
+                <div
+                  style={{
+                    width: "100%",
+                    maxWidth: 228,
+                    height: 68,
+                    borderRadius: 18,
+                    border: `1.5px dashed ${C.line}`,
+                    background: "rgba(255,255,255,.9)",
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       {/* 拖拽中跟随手指的条目预览 */}
       <div
-        style={{ position: "fixed", left: dragPoint?.x ?? 0, top: dragPoint?.y ?? 0, transform: "translate(-50%, -115%)", background: C.white, borderRadius: 12, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 4px 20px rgba(0,0,0,.2)", pointerEvents: "none" }}
+        style={{ position: "fixed", left: dragPoint?.x ?? 0, top: dragPoint?.y ?? 0, transform: `translate(-50%, ${previewTranslateY})`, background: C.white, borderRadius: 12, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 4px 20px rgba(0,0,0,.2)", pointerEvents: "none" }}
       >
         <div style={{ width: 32, height: 32, borderRadius: 8, background: C.orangeBg, display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px dashed #D85A30" }}>
           <span style={{ fontSize: 12, color: "#D85A30", fontWeight: 700 }}>?</span>
